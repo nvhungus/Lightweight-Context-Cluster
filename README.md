@@ -1,0 +1,109 @@
+# Lightweight HBCC for Context Cluster
+
+This workspace implements the research plan in `docs/lightweight_hbcc_research_plan.md` as a reproducible CIFAR pipeline.
+
+## Environment
+
+The target conda environment is `CoC`. On this machine it has been initialized with Python 3.11 and CUDA PyTorch.
+
+```powershell
+conda activate CoC
+python --version
+python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
+```
+
+If the env has to be rebuilt:
+
+```powershell
+conda env update -n CoC -f environment.yml
+```
+
+When `conda activate` is unreliable, call the interpreter directly:
+
+```powershell
+& D:\Anaconda\envs\CoC\python.exe tools\shape_trace.py --config configs\smoke.yaml
+```
+
+## What Is Implemented
+
+- CoC-style context clustering with cosine similarity, hard assignment, sigmoid-scaled aggregation and dispatch.
+- Optional RGB+XY coordinate augmentation.
+- Early reducer schedule for CIFAR: `32 -> 16 -> 8 -> 4 -> 2`.
+- HBCC-Latency Tiny/Small configs.
+- Current-reference HBCC config that intentionally keeps the first cluster stage at `32x32`.
+- Local branch ablations: identity, DWConv, fixed LBPConv.
+- Similarity ablations: cosine and simulated Hamming with STE.
+- Structured channel mask training and materialized pruned-config export.
+- CE-only and KD training.
+- Benchmark protocol for batch `1, 16, 64, 128`, strict latency, streaming throughput, peak memory, FLOPs best effort and torch operator profile.
+- Pareto report generation from JSON benchmark records.
+
+## Quick Checks
+
+```powershell
+& D:\Anaconda\envs\CoC\python.exe -m pytest
+& D:\Anaconda\envs\CoC\python.exe tools\shape_trace.py --config configs\hbcc_latency_tiny.yaml
+& D:\Anaconda\envs\CoC\python.exe tools\benchmark.py --config configs\smoke.yaml --batch-sizes 1 4 --warmup 2 --runs 3
+```
+
+## Training
+
+Student CE-only:
+
+```powershell
+& D:\Anaconda\envs\CoC\python.exe tools\train.py --config configs\hbcc_latency_tiny.yaml --output runs
+```
+
+Short proxy training for search:
+
+```powershell
+& D:\Anaconda\envs\CoC\python.exe tools\train.py --config configs\hbcc_latency_tiny.yaml --output runs_proxy --override train.epochs=30
+```
+
+Knowledge distillation:
+
+```powershell
+& D:\Anaconda\envs\CoC\python.exe tools\train.py --config configs\hbcc_latency_tiny.yaml --output runs_kd --teacher-config configs\baselines\resnet18_cifar.yaml --teacher-checkpoint runs\resnet18_cifar\best.pth --override train.kd_alpha=0.5 --override train.kd_temperature=4.0
+```
+
+## Benchmark Matrix
+
+```powershell
+& D:\Anaconda\envs\CoC\python.exe tools\benchmark.py --config configs\baselines\resnet18_cifar.yaml --output results\benchmark --profile
+& D:\Anaconda\envs\CoC\python.exe tools\benchmark.py --config configs\baselines\mobilenet_v2_cifar.yaml --output results\benchmark --profile
+& D:\Anaconda\envs\CoC\python.exe tools\benchmark.py --config configs\coc_cifar_baseline.yaml --output results\benchmark --profile
+& D:\Anaconda\envs\CoC\python.exe tools\benchmark.py --config configs\hbcc_current_reference.yaml --output results\benchmark --profile
+& D:\Anaconda\envs\CoC\python.exe tools\benchmark.py --config configs\hbcc_latency_tiny.yaml --output results\benchmark --profile
+```
+
+Trained accuracy can be added to benchmark JSON records from `runs/*/metrics.jsonl` before building final Pareto tables.
+
+```powershell
+& D:\Anaconda\envs\CoC\python.exe tools\pareto_report.py results\benchmark --output results\pareto.md
+```
+
+## Ablations
+
+Generate one config per ablation from the Tiny base:
+
+```powershell
+& D:\Anaconda\envs\CoC\python.exe tools\ablation_matrix.py --base configs\hbcc_latency_tiny.yaml --output-dir configs\generated_ablations
+```
+
+Main manual ablation configs are also available in `configs/ablations`.
+
+## Pruning Export
+
+Train with masks:
+
+```powershell
+& D:\Anaconda\envs\CoC\python.exe tools\train.py --config configs\ablations\hbcc_tiny_pruning_mask.yaml --output runs_pruning
+```
+
+Export a smaller materialized config:
+
+```powershell
+& D:\Anaconda\envs\CoC\python.exe tools\export_pruned.py --config configs\ablations\hbcc_tiny_pruning_mask.yaml --checkpoint runs_pruning\hbcc_tiny_pruning_mask\best.pth --output configs\generated_ablations\hbcc_tiny_pruned_export.yaml
+```
+
+Then fine-tune and benchmark the exported config.

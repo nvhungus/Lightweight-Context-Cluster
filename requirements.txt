@@ -1,0 +1,14 @@
+einops
+fvcore
+matplotlib
+pandas
+pypdf
+pyyaml
+rich
+tabulate
+tensorboard
+thop
+timm
+torch
+torchvision
+tqdm
