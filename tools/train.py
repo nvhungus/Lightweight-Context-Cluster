@@ -26,6 +26,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default="auto")
     parser.add_argument("--limit-train-batches", type=int)
     parser.add_argument("--limit-val-batches", type=int)
+    parser.add_argument("--no-progress", action="store_true", help="Disable tqdm progress bars for notebook/log runs.")
+    parser.add_argument("--print-every", type=int, default=1, help="Print an epoch summary every N epochs. Use 0 to print only the final epoch.")
     parser.add_argument("--override", action="append", default=[])
     return parser.parse_args()
 
@@ -87,8 +89,16 @@ def main() -> None:
             amp=amp,
             limit_batches=args.limit_train_batches,
             pruning_regularization=pruning_reg,
+            progress=not args.no_progress,
         )
-        val_metrics = evaluate(model, val_loader, device, amp=amp, limit_batches=args.limit_val_batches)
+        val_metrics = evaluate(
+            model,
+            val_loader,
+            device,
+            amp=amp,
+            limit_batches=args.limit_val_batches,
+            progress=not args.no_progress,
+        )
         scheduler.step()
         record = {"epoch": epoch, "lr": scheduler.get_last_lr()[0], **train_metrics, **val_metrics}
         write_metrics(record, output_dir / "metrics.jsonl")
@@ -104,7 +114,17 @@ def main() -> None:
             },
             output_dir / ("best.pth" if is_best else "latest.pth"),
         )
-        print(json.dumps(record, indent=2))
+        should_print = epoch == epochs - 1
+        if args.print_every > 0:
+            should_print = should_print or (epoch % args.print_every == 0)
+        if should_print:
+            if args.no_progress:
+                print(
+                    "epoch={epoch} lr={lr:.6g} train_acc1={train_acc1:.2f} "
+                    "train_loss={train_loss:.4f} val_acc1={val_acc1:.2f} val_loss={val_loss:.4f}".format(**record)
+                )
+            else:
+                print(json.dumps(record, indent=2))
 
 
 if __name__ == "__main__":

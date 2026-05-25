@@ -44,6 +44,7 @@ def train_one_epoch(
     amp: bool = True,
     limit_batches: int | None = None,
     pruning_regularization: tuple[float, float] | None = None,
+    progress: bool = True,
 ) -> dict[str, float]:
     model.train()
     if teacher is not None:
@@ -52,7 +53,7 @@ def train_one_epoch(
     loss_meter = AverageMeter()
     acc_meter = AverageMeter()
     start = time.perf_counter()
-    pbar = tqdm(loader, desc=f"train {epoch}", leave=False)
+    pbar = tqdm(loader, desc=f"train {epoch}", leave=False, disable=not progress, dynamic_ncols=True, mininterval=0.5)
     for step, (images, target) in enumerate(pbar):
         if limit_batches is not None and step >= limit_batches:
             break
@@ -72,7 +73,8 @@ def train_one_epoch(
         acc1 = accuracy(output.detach(), target, (1,))[0].item()
         loss_meter.update(loss.item(), images.size(0))
         acc_meter.update(acc1, images.size(0))
-        pbar.set_postfix(loss=f"{loss_meter.avg:.4f}", acc1=f"{acc_meter.avg:.2f}")
+        if progress:
+            pbar.set_postfix(loss=f"{loss_meter.avg:.4f}", acc1=f"{acc_meter.avg:.2f}")
     return {"train_loss": loss_meter.avg, "train_acc1": acc_meter.avg, "train_time_s": time.perf_counter() - start}
 
 
@@ -83,13 +85,16 @@ def evaluate(
     device: torch.device,
     amp: bool = True,
     limit_batches: int | None = None,
+    progress: bool = True,
 ) -> dict[str, float]:
     model.eval()
     loss_fn = nn.CrossEntropyLoss()
     loss_meter = AverageMeter()
     acc_meter = AverageMeter()
     start = time.perf_counter()
-    for step, (images, target) in enumerate(tqdm(loader, desc="eval", leave=False)):
+    for step, (images, target) in enumerate(
+        tqdm(loader, desc="eval", leave=False, disable=not progress, dynamic_ncols=True, mininterval=0.5)
+    ):
         if limit_batches is not None and step >= limit_batches:
             break
         images = images.to(device, non_blocking=True)
