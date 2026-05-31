@@ -25,7 +25,8 @@ def num_classes_for_dataset(name: str) -> int:
     raise ValueError(f"Unsupported dataset: {name}")
 
 
-def _transforms(name: str, train: bool, augment: bool) -> transforms.Compose:
+def _transforms(name: str, train: bool, augment: bool, cfg: dict[str, Any] | None = None) -> transforms.Compose:
+    cfg = cfg or {}
     if name.lower() == "cifar100":
         mean, std = CIFAR100_MEAN, CIFAR100_STD
     else:
@@ -38,7 +39,26 @@ def _transforms(name: str, train: bool, augment: bool) -> transforms.Compose:
                 transforms.RandomHorizontalFlip(),
             ]
         )
+        randaugment = cfg.get("randaugment", {})
+        if isinstance(randaugment, dict) and randaugment.get("enabled", False):
+            ops.append(
+                transforms.RandAugment(
+                    num_ops=int(randaugment.get("num_ops", 2)),
+                    magnitude=int(randaugment.get("magnitude", 9)),
+                )
+            )
     ops.extend([transforms.ToTensor(), transforms.Normalize(mean, std)])
+    if train and augment:
+        random_erasing = cfg.get("random_erasing", {})
+        if isinstance(random_erasing, dict) and random_erasing.get("p", 0.0) > 0:
+            ops.append(
+                transforms.RandomErasing(
+                    p=float(random_erasing.get("p", 0.25)),
+                    scale=tuple(random_erasing.get("scale", [0.02, 0.2])),
+                    ratio=tuple(random_erasing.get("ratio", [0.3, 3.3])),
+                    value=float(random_erasing.get("value", 0.0)),
+                )
+            )
     return transforms.Compose(ops)
 
 
@@ -48,13 +68,13 @@ def build_datasets(cfg: dict[str, Any]) -> tuple[torch.utils.data.Dataset, torch
     download = bool(cfg.get("download", True))
     augment = bool(cfg.get("augment", True))
     if name == "cifar10":
-        train = datasets.CIFAR10(root=root, train=True, transform=_transforms(name, True, augment), download=download)
-        val = datasets.CIFAR10(root=root, train=False, transform=_transforms(name, False, False), download=download)
+        train = datasets.CIFAR10(root=root, train=True, transform=_transforms(name, True, augment, cfg), download=download)
+        val = datasets.CIFAR10(root=root, train=False, transform=_transforms(name, False, False, cfg), download=download)
     elif name == "cifar100":
-        train = datasets.CIFAR100(root=root, train=True, transform=_transforms(name, True, augment), download=download)
-        val = datasets.CIFAR100(root=root, train=False, transform=_transforms(name, False, False), download=download)
+        train = datasets.CIFAR100(root=root, train=True, transform=_transforms(name, True, augment, cfg), download=download)
+        val = datasets.CIFAR100(root=root, train=False, transform=_transforms(name, False, False, cfg), download=download)
     elif name == "fake":
-        transform = _transforms("cifar10", False, False)
+        transform = _transforms("cifar10", False, False, cfg)
         train = datasets.FakeData(size=int(cfg.get("fake_train_size", 512)), image_size=(3, 32, 32), num_classes=10, transform=transform)
         val = datasets.FakeData(size=int(cfg.get("fake_val_size", 128)), image_size=(3, 32, 32), num_classes=10, transform=transform)
     else:

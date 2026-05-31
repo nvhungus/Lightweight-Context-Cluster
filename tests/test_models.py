@@ -24,6 +24,8 @@ def test_all_reference_models_forward() -> None:
         "configs/hbcc_latency_tiny.yaml",
         "configs/hbcc_current_reference.yaml",
         "configs/coc_cifar_baseline.yaml",
+        "configs/hbcc_accuracy_small.yaml",
+        "configs/hbcc_accuracy_medium.yaml",
     ]:
         cfg = load_config(path)
         model = build_model(cfg).eval()

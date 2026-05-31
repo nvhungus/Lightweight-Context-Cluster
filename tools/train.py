@@ -62,7 +62,13 @@ def main() -> None:
         weight_decay=float(train_cfg.get("weight_decay", 0.05)),
     )
     epochs = int(train_cfg.get("epochs", 200))
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, epochs))
+    warmup_epochs = int(train_cfg.get("warmup_epochs", 0))
+    if warmup_epochs > 0 and epochs > warmup_epochs:
+        warmup = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=0.01, total_iters=warmup_epochs)
+        cosine = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, epochs - warmup_epochs))
+        scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[warmup, cosine], milestones=[warmup_epochs])
+    else:
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, epochs))
     criterion = DistillationLoss(
         temperature=float(train_cfg.get("kd_temperature", 4.0)),
         alpha=float(train_cfg.get("kd_alpha", 0.0 if teacher is None else 0.5)),
@@ -90,6 +96,10 @@ def main() -> None:
             limit_batches=args.limit_train_batches,
             pruning_regularization=pruning_reg,
             progress=not args.no_progress,
+            mixup_alpha=float(train_cfg.get("mixup_alpha", 0.0)),
+            cutmix_alpha=float(train_cfg.get("cutmix_alpha", 0.0)),
+            cutmix_prob=float(train_cfg.get("cutmix_prob", 0.0)),
+            num_classes=cfg["model"]["num_classes"],
         )
         val_metrics = evaluate(
             model,

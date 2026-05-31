@@ -11,6 +11,7 @@ results/
 checkpoints/
 artifacts/
 external/
+kaggle/
 *.pth
 *.pt
 *.onnx

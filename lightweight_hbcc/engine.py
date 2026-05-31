@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import random
 import time
 from pathlib import Path
 from typing import Any
@@ -10,7 +11,7 @@ from torch import nn
 from torch.amp import GradScaler, autocast
 from tqdm import tqdm
 
-from .losses import DistillationLoss
+from .losses import DistillationLoss, smooth_one_hot
 from .metrics import AverageMeter, accuracy
 
 
@@ -33,6 +34,48 @@ def load_checkpoint(model: nn.Module, path: str | Path, device: torch.device, st
     return ckpt
 
 
+def _rand_bbox(height: int, width: int, lam: float) -> tuple[int, int, int, int]:
+    cut_ratio = (1.0 - lam) ** 0.5
+    cut_h = int(height * cut_ratio)
+    cut_w = int(width * cut_ratio)
+    cy = random.randint(0, height - 1)
+    cx = random.randint(0, width - 1)
+    y1 = max(cy - cut_h // 2, 0)
+    y2 = min(cy + cut_h // 2, height)
+    x1 = max(cx - cut_w // 2, 0)
+    x2 = min(cx + cut_w // 2, width)
+    return y1, y2, x1, x2
+
+
+def apply_mixup_cutmix(
+    images: torch.Tensor,
+    target: torch.Tensor,
+    num_classes: int,
+    label_smoothing: float,
+    mixup_alpha: float = 0.0,
+    cutmix_alpha: float = 0.0,
+    cutmix_prob: float = 0.0,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    use_mixup = mixup_alpha > 0.0
+    use_cutmix = cutmix_alpha > 0.0 and random.random() < cutmix_prob
+    if not use_mixup and not use_cutmix:
+        return images, target
+    index = torch.randperm(images.size(0), device=images.device)
+    target_a = smooth_one_hot(target, num_classes, label_smoothing)
+    target_b = target_a[index]
+    if use_cutmix:
+        lam = random.betavariate(cutmix_alpha, cutmix_alpha)
+        y1, y2, x1, x2 = _rand_bbox(images.shape[-2], images.shape[-1], lam)
+        images = images.clone()
+        images[:, :, y1:y2, x1:x2] = images[index, :, y1:y2, x1:x2]
+        lam = 1.0 - ((y2 - y1) * (x2 - x1) / float(images.shape[-2] * images.shape[-1]))
+    else:
+        lam = random.betavariate(mixup_alpha, mixup_alpha)
+        images = images * lam + images[index] * (1.0 - lam)
+    mixed_target = target_a * lam + target_b * (1.0 - lam)
+    return images, mixed_target
+
+
 def train_one_epoch(
     model: nn.Module,
     loader: torch.utils.data.DataLoader,
@@ -45,6 +88,10 @@ def train_one_epoch(
     limit_batches: int | None = None,
     pruning_regularization: tuple[float, float] | None = None,
     progress: bool = True,
+    mixup_alpha: float = 0.0,
+    cutmix_alpha: float = 0.0,
+    cutmix_prob: float = 0.0,
+    num_classes: int | None = None,
 ) -> dict[str, float]:
     model.train()
     if teacher is not None:
@@ -59,6 +106,17 @@ def train_one_epoch(
             break
         images = images.to(device, non_blocking=True)
         target = target.to(device, non_blocking=True)
+        hard_target = target
+        if num_classes is not None:
+            images, target = apply_mixup_cutmix(
+                images,
+                target,
+                num_classes=num_classes,
+                label_smoothing=criterion.label_smoothing,
+                mixup_alpha=mixup_alpha,
+                cutmix_alpha=cutmix_alpha,
+                cutmix_prob=cutmix_prob,
+            )
         optimizer.zero_grad(set_to_none=True)
         with torch.no_grad():
             teacher_logits = teacher(images) if teacher is not None else None
@@ -70,7 +128,7 @@ def train_one_epoch(
         scaler.scale(loss).backward()
         scaler.step(optimizer)
         scaler.update()
-        acc1 = accuracy(output.detach(), target, (1,))[0].item()
+        acc1 = accuracy(output.detach(), hard_target, (1,))[0].item()
         loss_meter.update(loss.item(), images.size(0))
         acc_meter.update(acc1, images.size(0))
         if progress:
