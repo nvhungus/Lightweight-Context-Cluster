@@ -9,7 +9,7 @@ data:
   test_batch_size: 256
   val_size: 5000
   split_seed: 42
-  workers: 2
+  workers: 4
   augment: true
 model:
   name: hbcc
