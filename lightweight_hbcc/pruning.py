@@ -57,5 +57,31 @@ def export_pruned_config(
     if not masks:
         raise ValueError("Model has no ChannelGate masks. Enable model.pruning_mask first.")
     cfg = derive_pruned_config(base_config, masks, threshold, min_channels, round_to)
+    cfg.setdefault("experiment", {})["name"] = Path(out_path).stem
     save_config(cfg, out_path)
     return cfg
+
+
+def summarize_masks(
+    masks: list[torch.Tensor],
+    thresholds: list[float],
+    round_to: int = 8,
+    min_channels: int = 8,
+) -> list[dict[str, Any]]:
+    rows = []
+    for stage_idx, mask in enumerate(masks):
+        stage = {
+            "stage": stage_idx,
+            "channels": int(mask.numel()),
+            "min": float(mask.min().item()),
+            "max": float(mask.max().item()),
+            "mean": float(mask.mean().item()),
+        }
+        for threshold in thresholds:
+            keep = int((mask >= threshold).sum().item())
+            rounded_keep = max(min_channels, ((keep + round_to - 1) // round_to) * round_to)
+            rounded_keep = min(int(mask.numel()), rounded_keep)
+            stage[f"keep@{threshold:g}"] = keep
+            stage[f"rounded_keep@{threshold:g}"] = rounded_keep
+        rows.append(stage)
+    return rows

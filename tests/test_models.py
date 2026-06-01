@@ -26,6 +26,7 @@ def test_all_reference_models_forward() -> None:
         "configs/coc_cifar_baseline.yaml",
         "configs/hbcc_accuracy_small.yaml",
         "configs/hbcc_accuracy_medium.yaml",
+        "configs/ablations/hbcc_accuracy_small_pruning_mask.yaml",
     ]:
         cfg = load_config(path)
         model = build_model(cfg).eval()
