@@ -48,6 +48,16 @@ When `conda activate` is unreliable, call the interpreter directly:
 
 ## Training
 
+For CIFAR-10 and CIFAR-100, the training pipeline uses the original training
+split for model selection and keeps the official test split for final reporting:
+
+- `train`: 45k images from the original training split
+- `val`: 5k images from the original training split, controlled by `data.split_seed`
+- `test`: official 10k test split, evaluated once on `best.pth`
+
+Validation metrics are written into `metrics.jsonl` every epoch. Final test
+metrics are written to both `metrics.jsonl` and `test_metrics.json`.
+
 Student CE-only:
 
 ```powershell
@@ -77,6 +87,7 @@ Knowledge distillation:
 ```
 
 Trained accuracy can be added to benchmark JSON records from `runs/*/metrics.jsonl` before building final Pareto tables.
+Use `val_acc1` for model selection and `test_acc1` for final held-out reporting.
 
 ```powershell
 & D:\Anaconda\envs\CoC\python.exe tools\pareto_report.py results\benchmark --output results\pareto.md

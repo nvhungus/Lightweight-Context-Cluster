@@ -62,36 +62,100 @@ def _transforms(name: str, train: bool, augment: bool, cfg: dict[str, Any] | Non
     return transforms.Compose(ops)
 
 
-def build_datasets(cfg: dict[str, Any]) -> tuple[torch.utils.data.Dataset, torch.utils.data.Dataset]:
+def _train_val_indices(length: int, val_size: int, seed: int) -> tuple[list[int], list[int]]:
+    if val_size <= 0 or val_size >= length:
+        raise ValueError(f"val_size must be between 1 and {length - 1}, got {val_size}")
+    generator = torch.Generator().manual_seed(seed)
+    indices = torch.randperm(length, generator=generator).tolist()
+    val_indices = indices[:val_size]
+    train_indices = indices[val_size:]
+    return train_indices, val_indices
+
+
+def build_datasets(
+    cfg: dict[str, Any],
+) -> tuple[torch.utils.data.Dataset, torch.utils.data.Dataset, torch.utils.data.Dataset]:
     name = str(cfg.get("name", "cifar10")).lower()
     root = Path(cfg.get("root", "data"))
     download = bool(cfg.get("download", True))
     augment = bool(cfg.get("augment", True))
     if name == "cifar10":
-        train = datasets.CIFAR10(root=root, train=True, transform=_transforms(name, True, augment, cfg), download=download)
-        val = datasets.CIFAR10(root=root, train=False, transform=_transforms(name, False, False, cfg), download=download)
+        train_full = datasets.CIFAR10(
+            root=root,
+            train=True,
+            transform=_transforms(name, True, augment, cfg),
+            download=download,
+        )
+        val_full = datasets.CIFAR10(
+            root=root,
+            train=True,
+            transform=_transforms(name, False, False, cfg),
+            download=download,
+        )
+        test = datasets.CIFAR10(
+            root=root,
+            train=False,
+            transform=_transforms(name, False, False, cfg),
+            download=download,
+        )
+        val_size = int(cfg.get("val_size", 5000))
+        split_seed = int(cfg.get("split_seed", 42))
+        train_indices, val_indices = _train_val_indices(len(train_full), val_size, split_seed)
+        train = Subset(train_full, train_indices)
+        val = Subset(val_full, val_indices)
     elif name == "cifar100":
-        train = datasets.CIFAR100(root=root, train=True, transform=_transforms(name, True, augment, cfg), download=download)
-        val = datasets.CIFAR100(root=root, train=False, transform=_transforms(name, False, False, cfg), download=download)
+        train_full = datasets.CIFAR100(
+            root=root,
+            train=True,
+            transform=_transforms(name, True, augment, cfg),
+            download=download,
+        )
+        val_full = datasets.CIFAR100(
+            root=root,
+            train=True,
+            transform=_transforms(name, False, False, cfg),
+            download=download,
+        )
+        test = datasets.CIFAR100(
+            root=root,
+            train=False,
+            transform=_transforms(name, False, False, cfg),
+            download=download,
+        )
+        val_size = int(cfg.get("val_size", 5000))
+        split_seed = int(cfg.get("split_seed", 42))
+        train_indices, val_indices = _train_val_indices(len(train_full), val_size, split_seed)
+        train = Subset(train_full, train_indices)
+        val = Subset(val_full, val_indices)
     elif name == "fake":
         transform = _transforms("cifar10", False, False, cfg)
         train = datasets.FakeData(size=int(cfg.get("fake_train_size", 512)), image_size=(3, 32, 32), num_classes=10, transform=transform)
         val = datasets.FakeData(size=int(cfg.get("fake_val_size", 128)), image_size=(3, 32, 32), num_classes=10, transform=transform)
+        test = datasets.FakeData(
+            size=int(cfg.get("fake_test_size", cfg.get("fake_val_size", 128))),
+            image_size=(3, 32, 32),
+            num_classes=10,
+            transform=transform,
+        )
     else:
         raise ValueError(f"Unsupported dataset: {name}")
     train_limit = cfg.get("train_limit")
     val_limit = cfg.get("val_limit")
+    test_limit = cfg.get("test_limit")
     if train_limit:
         train = Subset(train, range(min(int(train_limit), len(train))))
     if val_limit:
         val = Subset(val, range(min(int(val_limit), len(val))))
-    return train, val
+    if test_limit:
+        test = Subset(test, range(min(int(test_limit), len(test))))
+    return train, val, test
 
 
-def build_loaders(cfg: dict[str, Any]) -> tuple[DataLoader, DataLoader]:
-    train_set, val_set = build_datasets(cfg)
+def build_loaders(cfg: dict[str, Any]) -> tuple[DataLoader, DataLoader, DataLoader]:
+    train_set, val_set, test_set = build_datasets(cfg)
     batch_size = int(cfg.get("batch_size", 128))
     val_batch_size = int(cfg.get("val_batch_size", batch_size))
+    test_batch_size = int(cfg.get("test_batch_size", val_batch_size))
     workers = int(cfg.get("workers", 2))
     pin_memory = bool(cfg.get("pin_memory", True))
     train_loader = DataLoader(
@@ -109,4 +173,11 @@ def build_loaders(cfg: dict[str, Any]) -> tuple[DataLoader, DataLoader]:
         num_workers=workers,
         pin_memory=pin_memory,
     )
-    return train_loader, val_loader
+    test_loader = DataLoader(
+        test_set,
+        batch_size=test_batch_size,
+        shuffle=False,
+        num_workers=workers,
+        pin_memory=pin_memory,
+    )
+    return train_loader, val_loader, test_loader

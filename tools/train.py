@@ -26,6 +26,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default="auto")
     parser.add_argument("--limit-train-batches", type=int)
     parser.add_argument("--limit-val-batches", type=int)
+    parser.add_argument("--limit-test-batches", type=int)
+    parser.add_argument("--skip-test", action="store_true", help="Skip final evaluation on the held-out test split.")
     parser.add_argument("--no-progress", action="store_true", help="Disable tqdm progress bars for notebook/log runs.")
     parser.add_argument("--print-every", type=int, default=1, help="Print an epoch summary every N epochs. Use 0 to print only the final epoch.")
     parser.add_argument("--override", action="append", default=[])
@@ -41,8 +43,14 @@ def main() -> None:
     output_dir = Path(args.output) / cfg.get("experiment", {}).get("name", Path(args.config).stem)
     output_dir.mkdir(parents=True, exist_ok=True)
     save_config(cfg, output_dir / "config.yaml")
+    metrics_path = output_dir / "metrics.jsonl"
+    test_metrics_path = output_dir / "test_metrics.json"
+    if not args.resume:
+        for stale_path in (metrics_path, test_metrics_path):
+            if stale_path.exists():
+                stale_path.unlink()
 
-    train_loader, val_loader = build_loaders(cfg.get("data", {}))
+    train_loader, val_loader, test_loader = build_loaders(cfg.get("data", {}))
     model = build_model(cfg).to(device)
     if args.resume:
         load_checkpoint(model, args.resume, device, strict=False)
@@ -83,6 +91,7 @@ def main() -> None:
         )
 
     best_acc = 0.0
+    best_epoch = -1
     for epoch in range(epochs):
         train_metrics = train_one_epoch(
             model,
@@ -108,22 +117,26 @@ def main() -> None:
             amp=amp,
             limit_batches=args.limit_val_batches,
             progress=not args.no_progress,
+            prefix="val",
         )
         scheduler.step()
         record = {"epoch": epoch, "lr": scheduler.get_last_lr()[0], **train_metrics, **val_metrics}
-        write_metrics(record, output_dir / "metrics.jsonl")
+        write_metrics(record, metrics_path)
         is_best = val_metrics["val_acc1"] >= best_acc
-        best_acc = max(best_acc, val_metrics["val_acc1"])
-        save_checkpoint(
-            {
-                "epoch": epoch,
-                "model": model.state_dict(),
-                "optimizer": optimizer.state_dict(),
-                "best_acc1": best_acc,
-                "config": cfg,
-            },
-            output_dir / ("best.pth" if is_best else "latest.pth"),
-        )
+        if is_best:
+            best_acc = val_metrics["val_acc1"]
+            best_epoch = epoch
+        checkpoint = {
+            "epoch": epoch,
+            "model": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "best_acc1": best_acc,
+            "best_epoch": best_epoch,
+            "config": cfg,
+        }
+        save_checkpoint(checkpoint, output_dir / "latest.pth")
+        if is_best:
+            save_checkpoint(checkpoint, output_dir / "best.pth")
         should_print = epoch == epochs - 1
         if args.print_every > 0:
             should_print = should_print or (epoch % args.print_every == 0)
@@ -135,6 +148,30 @@ def main() -> None:
                 )
             else:
                 print(json.dumps(record, indent=2))
+
+    best_path = output_dir / "best.pth"
+    if not args.skip_test and best_path.exists():
+        load_checkpoint(model, best_path, device, strict=True)
+        test_metrics = evaluate(
+            model,
+            test_loader,
+            device,
+            amp=amp,
+            limit_batches=args.limit_test_batches,
+            progress=not args.no_progress,
+            prefix="test",
+        )
+        test_record = {"phase": "test", "epoch": best_epoch, "checkpoint": str(best_path.name), **test_metrics}
+        write_metrics(test_record, metrics_path)
+        with test_metrics_path.open("w", encoding="utf-8") as f:
+            json.dump(test_record, f, indent=2)
+        if args.no_progress:
+            print(
+                "test checkpoint={checkpoint} epoch={epoch} test_acc1={test_acc1:.2f} "
+                "test_loss={test_loss:.4f}".format(**test_record)
+            )
+        else:
+            print(json.dumps(test_record, indent=2))
 
 
 if __name__ == "__main__":

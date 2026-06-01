@@ -28,7 +28,10 @@ def save_checkpoint(state: dict[str, Any], path: str | Path) -> None:
 
 
 def load_checkpoint(model: nn.Module, path: str | Path, device: torch.device, strict: bool = True) -> dict[str, Any]:
-    ckpt = torch.load(path, map_location=device)
+    try:
+        ckpt = torch.load(path, map_location=device, weights_only=False)
+    except TypeError:
+        ckpt = torch.load(path, map_location=device)
     state = ckpt.get("model", ckpt)
     model.load_state_dict(state, strict=strict)
     return ckpt
@@ -144,6 +147,7 @@ def evaluate(
     amp: bool = True,
     limit_batches: int | None = None,
     progress: bool = True,
+    prefix: str = "val",
 ) -> dict[str, float]:
     model.eval()
     loss_fn = nn.CrossEntropyLoss()
@@ -151,7 +155,7 @@ def evaluate(
     acc_meter = AverageMeter()
     start = time.perf_counter()
     for step, (images, target) in enumerate(
-        tqdm(loader, desc="eval", leave=False, disable=not progress, dynamic_ncols=True, mininterval=0.5)
+        tqdm(loader, desc=prefix, leave=False, disable=not progress, dynamic_ncols=True, mininterval=0.5)
     ):
         if limit_batches is not None and step >= limit_batches:
             break
@@ -163,7 +167,11 @@ def evaluate(
         acc1 = accuracy(output, target, (1,))[0].item()
         loss_meter.update(loss.item(), images.size(0))
         acc_meter.update(acc1, images.size(0))
-    return {"val_loss": loss_meter.avg, "val_acc1": acc_meter.avg, "val_time_s": time.perf_counter() - start}
+    return {
+        f"{prefix}_loss": loss_meter.avg,
+        f"{prefix}_acc1": acc_meter.avg,
+        f"{prefix}_time_s": time.perf_counter() - start,
+    }
 
 
 def write_metrics(record: dict[str, Any], path: str | Path) -> None:

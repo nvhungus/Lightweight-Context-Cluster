@@ -8,6 +8,7 @@ data:
   augment: false
   fake_train_size: 32
   fake_val_size: 16
+  fake_test_size: 16
 model:
   name: hbcc
   num_classes: 10
