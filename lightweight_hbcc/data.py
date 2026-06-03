@@ -12,6 +12,8 @@ CIFAR10_MEAN = (0.4914, 0.4822, 0.4465)
 CIFAR10_STD = (0.2470, 0.2435, 0.2616)
 CIFAR100_MEAN = (0.5071, 0.4867, 0.4408)
 CIFAR100_STD = (0.2675, 0.2565, 0.2761)
+IMAGENET_MEAN = (0.485, 0.456, 0.406)
+IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
 def num_classes_for_dataset(name: str) -> int:
@@ -20,6 +22,8 @@ def num_classes_for_dataset(name: str) -> int:
         return 10
     if name == "cifar100":
         return 100
+    if name in {"imagenet", "imagenet1k", "imagenet-1k", "ilsvrc2012"}:
+        return 1000
     if name == "fake":
         return 10
     raise ValueError(f"Unsupported dataset: {name}")
@@ -27,7 +31,51 @@ def num_classes_for_dataset(name: str) -> int:
 
 def _transforms(name: str, train: bool, augment: bool, cfg: dict[str, Any] | None = None) -> transforms.Compose:
     cfg = cfg or {}
-    if name.lower() == "cifar100":
+    name = name.lower()
+    if name in {"imagenet", "imagenet1k", "imagenet-1k", "ilsvrc2012"}:
+        image_size = int(cfg.get("image_size", 224))
+        crop_pct = float(cfg.get("crop_pct", 0.95))
+        interpolation = transforms.InterpolationMode.BICUBIC
+        if str(cfg.get("interpolation", "bicubic")).lower() in {"bilinear", "linear"}:
+            interpolation = transforms.InterpolationMode.BILINEAR
+        ops: list[Any] = []
+        if train and augment:
+            ops.extend(
+                [
+                    transforms.RandomResizedCrop(image_size, interpolation=interpolation),
+                    transforms.RandomHorizontalFlip(),
+                ]
+            )
+            randaugment = cfg.get("randaugment", {})
+            if isinstance(randaugment, dict) and randaugment.get("enabled", False):
+                ops.append(
+                    transforms.RandAugment(
+                        num_ops=int(randaugment.get("num_ops", 2)),
+                        magnitude=int(randaugment.get("magnitude", 9)),
+                    )
+                )
+        else:
+            resize_size = int(round(image_size / crop_pct))
+            ops.extend(
+                [
+                    transforms.Resize(resize_size, interpolation=interpolation),
+                    transforms.CenterCrop(image_size),
+                ]
+            )
+        ops.extend([transforms.ToTensor(), transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)])
+        if train and augment:
+            random_erasing = cfg.get("random_erasing", {})
+            if isinstance(random_erasing, dict) and random_erasing.get("p", 0.0) > 0:
+                ops.append(
+                    transforms.RandomErasing(
+                        p=float(random_erasing.get("p", 0.25)),
+                        scale=tuple(random_erasing.get("scale", [0.02, 0.2])),
+                        ratio=tuple(random_erasing.get("ratio", [0.3, 3.3])),
+                        value=float(random_erasing.get("value", 0.0)),
+                    )
+                )
+        return transforms.Compose(ops)
+    if name == "cifar100":
         mean, std = CIFAR100_MEAN, CIFAR100_STD
     else:
         mean, std = CIFAR10_MEAN, CIFAR10_STD
@@ -137,6 +185,13 @@ def build_datasets(
             num_classes=10,
             transform=transform,
         )
+    elif name in {"imagenet", "imagenet1k", "imagenet-1k", "ilsvrc2012"}:
+        train_split = str(cfg.get("train_split", "train"))
+        val_split = str(cfg.get("val_split", "val"))
+        test_split = str(cfg.get("test_split", val_split))
+        train = datasets.ImageFolder(root / train_split, transform=_transforms(name, True, augment, cfg))
+        val = datasets.ImageFolder(root / val_split, transform=_transforms(name, False, False, cfg))
+        test = datasets.ImageFolder(root / test_split, transform=_transforms(name, False, False, cfg))
     else:
         raise ValueError(f"Unsupported dataset: {name}")
     train_limit = cfg.get("train_limit")

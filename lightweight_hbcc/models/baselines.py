@@ -22,3 +22,15 @@ def shufflenet_v2_x1_0_cifar(num_classes: int = 10, **_: object) -> nn.Module:
     model.conv1[0].stride = (1, 1)
     model.maxpool = nn.Identity()
     return model
+
+
+def resnet18_imagenet(num_classes: int = 1000, **_: object) -> nn.Module:
+    return models.resnet18(weights=None, num_classes=num_classes)
+
+
+def mobilenet_v2_imagenet(num_classes: int = 1000, **_: object) -> nn.Module:
+    return models.mobilenet_v2(weights=None, num_classes=num_classes)
+
+
+def shufflenet_v2_x1_0_imagenet(num_classes: int = 1000, **_: object) -> nn.Module:
+    return models.shufflenet_v2_x1_0(weights=None, num_classes=num_classes)

@@ -153,6 +153,7 @@ def evaluate(
     loss_fn = nn.CrossEntropyLoss()
     loss_meter = AverageMeter()
     acc_meter = AverageMeter()
+    acc5_meter = AverageMeter()
     start = time.perf_counter()
     for step, (images, target) in enumerate(
         tqdm(loader, desc=prefix, leave=False, disable=not progress, dynamic_ncols=True, mininterval=0.5)
@@ -164,14 +165,21 @@ def evaluate(
         with autocast(device_type=device.type, enabled=amp and device.type == "cuda"):
             output = model(images)
             loss = loss_fn(output, target)
-        acc1 = accuracy(output, target, (1,))[0].item()
+        if output.shape[1] >= 5:
+            acc1, acc5 = accuracy(output, target, (1, 5))
+            acc5_meter.update(acc5.item(), images.size(0))
+        else:
+            acc1 = accuracy(output, target, (1,))[0]
         loss_meter.update(loss.item(), images.size(0))
-        acc_meter.update(acc1, images.size(0))
-    return {
+        acc_meter.update(acc1.item(), images.size(0))
+    metrics = {
         f"{prefix}_loss": loss_meter.avg,
         f"{prefix}_acc1": acc_meter.avg,
         f"{prefix}_time_s": time.perf_counter() - start,
     }
+    if acc5_meter.count > 0:
+        metrics[f"{prefix}_acc5"] = acc5_meter.avg
+    return metrics
 
 
 def write_metrics(record: dict[str, Any], path: str | Path) -> None:

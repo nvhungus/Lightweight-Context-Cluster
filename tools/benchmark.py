@@ -34,6 +34,7 @@ def main() -> None:
     cfg = apply_overrides(load_config(args.config), args.override)
     device = resolve_device(args.device)
     model = build_model(cfg).to(device)
+    image_size = int(cfg.get("data", {}).get("image_size", 32))
     if args.checkpoint:
         load_checkpoint(model, args.checkpoint, device, strict=False)
     output_dir = Path(args.output)
@@ -47,11 +48,12 @@ def main() -> None:
         "torch_version": torch.__version__,
         "cuda_version": torch.version.cuda,
     }
-    record.update(model_static_metrics(model, device))
-    record.update(benchmark_model(model, device, args.batch_sizes, warmup=args.warmup, runs=args.runs))
+    record["image_size"] = image_size
+    record.update(model_static_metrics(model, device, image_size=image_size))
+    record.update(benchmark_model(model, device, args.batch_sizes, image_size=image_size, warmup=args.warmup, runs=args.runs))
     if args.profile:
         profile_path = output_dir / f"{name}_profile.txt"
-        profile_operators(model, device, batch_size=1, out_path=profile_path)
+        profile_operators(model, device, batch_size=1, image_size=image_size, out_path=profile_path)
         record["operator_profile"] = str(profile_path)
     out_path = output_dir / f"{name}.json"
     write_record(record, out_path)

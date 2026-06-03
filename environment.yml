@@ -22,5 +22,5 @@ dependencies:
       - tabulate
       - tensorboard
       - thop
-      - timm
+      - timm==0.6.13
       - tqdm

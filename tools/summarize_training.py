@@ -43,16 +43,18 @@ def main() -> None:
             test_records[-1],
         )
 
-    print(
-        "Best val: epoch={epoch}, val_acc1={val_acc1:.2f}, val_loss={val_loss:.4f}".format(
-            **best
-        )
-    )
+    line = "Best val: epoch={epoch}, val_acc1={val_acc1:.2f}, val_loss={val_loss:.4f}".format(**best)
+    if "val_acc5" in best:
+        line += " val_acc5={val_acc5:.2f}".format(**best)
+    print(line)
     if test is not None:
-        print(
+        line = (
             "Held-out test: checkpoint={checkpoint}, epoch={epoch}, test_acc1={test_acc1:.2f}, "
             "test_loss={test_loss:.4f}".format(**test)
         )
+        if "test_acc5" in test:
+            line += " test_acc5={test_acc5:.2f}".format(**test)
+        print(line)
     else:
         print("Held-out test: not available", file=sys.stderr)
 

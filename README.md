@@ -5,6 +5,7 @@ This workspace implements the research plan in `docs/lightweight_hbcc_research_p
 ## Environment
 
 The target conda environment is `CoC`. On this machine it has been initialized with Python 3.11 and CUDA PyTorch.
+The official Context-Cluster ImageNet scripts in `docs/context-cluster` require `timm==0.6.13`.
 
 ```powershell
 conda activate CoC
@@ -58,6 +59,20 @@ split for model selection and keeps the official test split for final reporting:
 Validation metrics are written into `metrics.jsonl` every epoch. Final test
 metrics are written to both `metrics.jsonl` and `test_metrics.json`.
 
+For ImageNet-1k, prepare the dataset manually because ImageNet cannot be
+downloaded by this project. The expected folder structure is:
+
+```text
+data/imagenet/
+  train/<class_id>/*.JPEG
+  val/<class_id>/*.JPEG
+```
+
+The public ImageNet-1k benchmark reports accuracy on the official validation
+split. The ImageNet configs therefore set both `val_split` and `test_split` to
+`val`; `test_acc1` is the final official validation accuracy, not a hidden
+test-set metric.
+
 Student CE-only:
 
 ```powershell
@@ -75,6 +90,21 @@ Knowledge distillation:
 ```powershell
 & D:\Anaconda\envs\CoC\python.exe tools\train.py --config configs\hbcc_latency_tiny.yaml --output runs_kd --teacher-config configs\baselines\resnet18_cifar.yaml --teacher-checkpoint runs\resnet18_cifar\best.pth --override train.kd_alpha=0.5 --override train.kd_temperature=4.0
 ```
+
+Official Context-Cluster ImageNet baseline from `docs/context-cluster`:
+
+```powershell
+& .\scripts\train_official_coc_imagenet.ps1 -ImageNetRoot data\imagenet
+```
+
+Selected ImageNet training matrix through this repo's trainer, including
+`resnet18_imagenet` and `hbcc_accuracy_small/medium` converted to ImageNet:
+
+```powershell
+& .\scripts\train_imagenet_baselines.ps1 -ImageNetRoot data\imagenet
+```
+
+The notebook version of this workflow is `notebooks/imagenet_baseline_pipeline.ipynb`.
 
 ## Benchmark Matrix
 

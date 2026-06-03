@@ -30,6 +30,7 @@ def main() -> None:
     cfg = apply_overrides(load_config(args.config), args.override)
     device = resolve_device(args.device)
     model = build_model(cfg).to(device).eval()
+    image_size = int(cfg.get("data", {}).get("image_size", 32))
     hooks = []
 
     def hook(name: str):
@@ -42,7 +43,7 @@ def main() -> None:
         if isinstance(module, (PointReducer, Stage, ContextClusterOp)):
             hooks.append(module.register_forward_hook(hook(name)))
     with torch.no_grad():
-        x = torch.randn(args.batch_size, 3, 32, 32, device=device)
+        x = torch.randn(args.batch_size, 3, image_size, image_size, device=device)
         y = model(x)
     for handle in hooks:
         handle.remove()

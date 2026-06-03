@@ -17,7 +17,7 @@ from lightweight_hbcc.models import build_model
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train CIFAR HBCC/CoC models.")
+    parser = argparse.ArgumentParser(description="Train HBCC/CoC/baseline image classification models.")
     parser.add_argument("--config", required=True)
     parser.add_argument("--output", default="runs")
     parser.add_argument("--resume")
@@ -142,10 +142,13 @@ def main() -> None:
             should_print = should_print or (epoch % args.print_every == 0)
         if should_print:
             if args.no_progress:
-                print(
+                line = (
                     "epoch={epoch} lr={lr:.6g} train_acc1={train_acc1:.2f} "
                     "train_loss={train_loss:.4f} val_acc1={val_acc1:.2f} val_loss={val_loss:.4f}".format(**record)
                 )
+                if "val_acc5" in record:
+                    line += " val_acc5={val_acc5:.2f}".format(**record)
+                print(line)
             else:
                 print(json.dumps(record, indent=2))
 
@@ -166,10 +169,13 @@ def main() -> None:
         with test_metrics_path.open("w", encoding="utf-8") as f:
             json.dump(test_record, f, indent=2)
         if args.no_progress:
-            print(
+            line = (
                 "test checkpoint={checkpoint} epoch={epoch} test_acc1={test_acc1:.2f} "
                 "test_loss={test_loss:.4f}".format(**test_record)
             )
+            if "test_acc5" in test_record:
+                line += " test_acc5={test_acc5:.2f}".format(**test_record)
+            print(line)
         else:
             print(json.dumps(test_record, indent=2))
 
