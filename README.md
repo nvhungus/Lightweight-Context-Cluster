@@ -68,6 +68,13 @@ data/imagenet/
   val/<class_id>/*.JPEG
 ```
 
+For the common Kaggle ImageNet localization dataset, `train` is usually already
+class-folder based but `val` is flat. Convert it to the structure above with:
+
+```powershell
+& D:\Anaconda\envs\CoC\python.exe scripts\prepare_kaggle_imagenet.py --source /kaggle/input/imagenet-object-localization-challenge --output data/imagenet --mode symlink
+```
+
 The public ImageNet-1k benchmark reports accuracy on the official validation
 split. The ImageNet configs therefore set both `val_split` and `test_split` to
 `val`; `test_acc1` is the final official validation accuracy, not a hidden
