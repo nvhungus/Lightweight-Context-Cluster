@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import csv
+import io
 from pathlib import Path
 from typing import Any
+import zipfile
 
 import torch
+from PIL import Image
 from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 
@@ -14,6 +18,7 @@ CIFAR100_MEAN = (0.5071, 0.4867, 0.4408)
 CIFAR100_STD = (0.2675, 0.2565, 0.2761)
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
+IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
 
 def num_classes_for_dataset(name: str) -> int:
@@ -120,6 +125,111 @@ def _train_val_indices(length: int, val_size: int, seed: int) -> tuple[list[int]
     return train_indices, val_indices
 
 
+def _read_kaggle_solution(path: Path) -> dict[str, str]:
+    if path.suffix.lower() == ".zip":
+        with zipfile.ZipFile(path) as archive:
+            names = [name for name in archive.namelist() if name.lower().endswith(".csv")]
+            if not names:
+                raise ValueError(f"No CSV file found inside {path}")
+            text = archive.read(names[0]).decode("utf-8")
+    else:
+        text = path.read_text(encoding="utf-8")
+
+    labels: dict[str, str] = {}
+    with io.StringIO(text) as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames and {"ImageId", "PredictionString"}.issubset(reader.fieldnames):
+            for row in reader:
+                image_id = str(row["ImageId"]).strip()
+                prediction = str(row["PredictionString"]).strip()
+                if image_id and prediction:
+                    labels[Path(image_id).stem] = prediction.split()[0]
+            return labels
+
+    with io.StringIO(text) as handle:
+        reader = csv.reader(handle)
+        next(reader, None)
+        for row in reader:
+            if len(row) >= 2 and row[0].strip() and row[1].strip():
+                labels[Path(row[0].strip()).stem] = row[1].strip().split()[0]
+    return labels
+
+
+def _find_kaggle_solution_csv(root: Path, configured: str | None) -> Path:
+    candidates = []
+    if configured:
+        configured_path = Path(configured)
+        candidates.append(configured_path if configured_path.is_absolute() else root / configured_path)
+    candidates.extend(
+        [
+            root / "LOC_val_solution.csv",
+            root / "LOC_val_solution.csv.zip",
+            root / "ILSVRC" / "LOC_val_solution.csv",
+            root / "ILSVRC" / "LOC_val_solution.csv.zip",
+            root / "ImageSets" / "CLS-LOC" / "val_solution.csv",
+            root / "ImageSets" / "CLS-LOC" / "val_solution.csv.zip",
+        ]
+    )
+    for path in candidates:
+        if path.exists():
+            return path
+    matches = sorted(list(root.rglob("*val*solution*.csv")) + list(root.rglob("*val*solution*.csv.zip")))
+    if matches:
+        return matches[0]
+    raise FileNotFoundError(f"Could not find LOC_val_solution.csv under {root}")
+
+
+class KaggleImageNetValDataset(torch.utils.data.Dataset):
+    def __init__(
+        self,
+        image_dir: Path,
+        solution_csv: Path,
+        class_to_idx: dict[str, int],
+        transform: transforms.Compose,
+    ) -> None:
+        self.image_dir = image_dir
+        self.transform = transform
+        labels = _read_kaggle_solution(solution_csv)
+        if not labels:
+            raise ValueError(f"No validation labels found in {solution_csv}")
+
+        files_by_stem = {
+            path.stem: path
+            for path in image_dir.iterdir()
+            if path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES
+        }
+        samples: list[tuple[Path, int]] = []
+        missing_files: list[str] = []
+        missing_classes: list[str] = []
+        for image_id, class_id in sorted(labels.items()):
+            image_path = files_by_stem.get(image_id)
+            if image_path is None:
+                missing_files.append(image_id)
+                continue
+            if class_id not in class_to_idx:
+                missing_classes.append(class_id)
+                continue
+            samples.append((image_path, class_to_idx[class_id]))
+        if missing_files:
+            preview = ", ".join(missing_files[:5])
+            raise FileNotFoundError(f"Missing {len(missing_files)} validation images in {image_dir}. First missing: {preview}")
+        if missing_classes:
+            preview = ", ".join(sorted(set(missing_classes))[:5])
+            raise ValueError(f"Missing {len(set(missing_classes))} classes from train class folders. First missing: {preview}")
+        self.samples = samples
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, int]:
+        path, target = self.samples[index]
+        with Image.open(path) as image:
+            image = image.convert("RGB")
+            if self.transform is not None:
+                image = self.transform(image)
+        return image, target
+
+
 def build_datasets(
     cfg: dict[str, Any],
     include_test: bool = True,
@@ -199,14 +309,29 @@ def build_datasets(
             else None
         )
     elif name in {"imagenet", "imagenet1k", "imagenet-1k", "ilsvrc2012"}:
-        train_split = str(cfg.get("train_split", "train"))
-        val_split = str(cfg.get("val_split", "val"))
+        layout = str(cfg.get("layout", "imagefolder")).lower()
+        default_train_split = "ILSVRC/Data/CLS-LOC/train" if layout in {"kaggle", "kaggle_cls_loc", "cls_loc"} else "train"
+        default_val_split = "ILSVRC/Data/CLS-LOC/val" if layout in {"kaggle", "kaggle_cls_loc", "cls_loc"} else "val"
+        train_split = str(cfg.get("train_split", default_train_split))
+        val_split = str(cfg.get("val_split", default_val_split))
         train = datasets.ImageFolder(root / train_split, transform=_transforms(name, True, augment, cfg))
-        val = datasets.ImageFolder(root / val_split, transform=_transforms(name, False, False, cfg))
+        if layout in {"kaggle", "kaggle_cls_loc", "cls_loc"}:
+            solution_csv = _find_kaggle_solution_csv(root, cfg.get("solution_csv"))
+            val = KaggleImageNetValDataset(
+                root / val_split,
+                solution_csv,
+                class_to_idx=train.class_to_idx,
+                transform=_transforms(name, False, False, cfg),
+            )
+        else:
+            val = datasets.ImageFolder(root / val_split, transform=_transforms(name, False, False, cfg))
         test = None
         if include_test:
             test_split = str(cfg.get("test_split", val_split))
-            test = datasets.ImageFolder(root / test_split, transform=_transforms(name, False, False, cfg))
+            if layout in {"kaggle", "kaggle_cls_loc", "cls_loc"} and test_split == val_split:
+                test = val
+            else:
+                test = datasets.ImageFolder(root / test_split, transform=_transforms(name, False, False, cfg))
     else:
         raise ValueError(f"Unsupported dataset: {name}")
     train_limit = cfg.get("train_limit")

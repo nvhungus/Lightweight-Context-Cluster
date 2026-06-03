@@ -60,7 +60,7 @@ Validation metrics are written into `metrics.jsonl` every epoch. Final test
 metrics are written to both `metrics.jsonl` and `test_metrics.json`.
 
 For ImageNet-1k, prepare the dataset manually because ImageNet cannot be
-downloaded by this project. The expected folder structure is:
+downloaded by this project. The standard `ImageFolder` structure is:
 
 ```text
 data/imagenet/
@@ -68,8 +68,15 @@ data/imagenet/
   val/<class_id>/*.JPEG
 ```
 
-For the common Kaggle ImageNet localization dataset, `train` is usually already
-class-folder based but `val` is flat. Convert it to the structure above with:
+For the common Kaggle ImageNet localization dataset, this repo trainer can also
+read the raw Kaggle layout directly, without creating symlinks:
+
+```powershell
+& D:\Anaconda\envs\CoC\python.exe tools\train.py --config configs\imagenet\hbcc_accuracy_small_imagenet.yaml --output runs_imagenet --override data.root=/kaggle/input/imagenet-object-localization-challenge --override data.layout=kaggle_cls_loc --override data.train_split=ILSVRC/Data/CLS-LOC/train --override data.val_split=ILSVRC/Data/CLS-LOC/val
+```
+
+The conversion script is still available when you need an `ImageFolder` layout,
+for example for the official Context-Cluster entrypoint:
 
 ```powershell
 & D:\Anaconda\envs\CoC\python.exe scripts\prepare_kaggle_imagenet.py --source /kaggle/input/imagenet-object-localization-challenge --output data/imagenet --mode symlink

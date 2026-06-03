@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import argparse
 import csv
+import io
 import json
 import os
 import shutil
+import sys
+import zipfile
 from pathlib import Path
 
 
@@ -69,19 +72,36 @@ def find_split_dir(source: Path, split: str) -> Path:
 def find_solution_csv(source: Path) -> Path | None:
     known = [
         source / "LOC_val_solution.csv",
+        source / "LOC_val_solution.csv.zip",
         source / "ILSVRC" / "LOC_val_solution.csv",
+        source / "ILSVRC" / "LOC_val_solution.csv.zip",
         source / "ImageSets" / "CLS-LOC" / "val_solution.csv",
+        source / "ImageSets" / "CLS-LOC" / "val_solution.csv.zip",
     ]
     for path in known:
         if path.exists():
             return path
-    matches = sorted(source.rglob("*val*solution*.csv"))
+    matches = sorted(list(source.rglob("*val*solution*.csv")) + list(source.rglob("*val*solution*.csv.zip")))
     return matches[0] if matches else None
 
 
 def read_val_solution(path: Path) -> dict[str, str]:
+    if path.suffix.lower() == ".zip":
+        with zipfile.ZipFile(path) as archive:
+            names = [name for name in archive.namelist() if name.lower().endswith(".csv")]
+            if not names:
+                raise ValueError(f"No CSV file found inside {path}")
+            with archive.open(names[0]) as raw:
+                text = raw.read().decode("utf-8")
+        return read_val_solution_text(text, str(path))
+
+    return read_val_solution_text(path.read_text(encoding="utf-8"), str(path))
+
+
+def read_val_solution_text(text: str, source_name: str) -> dict[str, str]:
     labels: dict[str, str] = {}
-    with path.open("r", encoding="utf-8", newline="") as handle:
+    lines = text.splitlines()
+    with io.StringIO("\n".join(lines)) as handle:
         reader = csv.DictReader(handle)
         if reader.fieldnames and {"ImageId", "PredictionString"}.issubset(reader.fieldnames):
             for row in reader:
@@ -91,7 +111,7 @@ def read_val_solution(path: Path) -> dict[str, str]:
                     labels[Path(image_id).stem] = prediction.split()[0]
             return labels
 
-    with path.open("r", encoding="utf-8", newline="") as handle:
+    with io.StringIO("\n".join(lines)) as handle:
         reader = csv.reader(handle)
         header = next(reader, None)
         if header is None:
@@ -104,6 +124,29 @@ def read_val_solution(path: Path) -> dict[str, str]:
             if image_id and prediction:
                 labels[Path(image_id).stem] = prediction.split()[0]
     return labels
+
+
+def print_failure_context(source: Path) -> None:
+    print("\nDiagnostic context:", file=sys.stderr)
+    print(f"  source exists: {source.exists()} -> {source}", file=sys.stderr)
+    input_root = Path("/kaggle/input")
+    if input_root.exists():
+        try:
+            print("  /kaggle/input entries:", file=sys.stderr)
+            for child in sorted(input_root.iterdir())[:30]:
+                print(f"    - {child}", file=sys.stderr)
+        except OSError as exc:
+            print(f"  could not list /kaggle/input: {exc}", file=sys.stderr)
+    if source.exists():
+        for rel in [
+            "ILSVRC/Data/CLS-LOC/train",
+            "ILSVRC/Data/CLS-LOC/val",
+            "ILSVRC/Data/CLS-LOC/test",
+            "LOC_val_solution.csv",
+            "LOC_val_solution.csv.zip",
+        ]:
+            path = source / rel
+            print(f"  {rel}: {path.exists()} -> {path}", file=sys.stderr)
 
 
 def materialize(src: Path, dst: Path, mode: str) -> None:
@@ -247,4 +290,12 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        try:
+            parsed = parse_args()
+            print_failure_context(parsed.source)
+        except Exception:
+            pass
+        raise

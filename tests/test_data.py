@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import torch
+from PIL import Image
 
 from lightweight_hbcc import data
 
@@ -51,3 +52,34 @@ def test_dataset_builder_can_skip_test_split() -> None:
     assert len(train) == 8
     assert len(val) == 4
     assert test is None
+
+
+def test_imagenet_kaggle_cls_loc_layout_reads_flat_val(tmp_path) -> None:
+    root = tmp_path / "imagenet-object-localization-challenge"
+    train_class = root / "ILSVRC" / "Data" / "CLS-LOC" / "train" / "n00000001"
+    val_dir = root / "ILSVRC" / "Data" / "CLS-LOC" / "val"
+    train_class.mkdir(parents=True)
+    val_dir.mkdir(parents=True)
+    Image.new("RGB", (8, 8), color="red").save(train_class / "n00000001_1.JPEG")
+    Image.new("RGB", (8, 8), color="blue").save(val_dir / "ILSVRC2012_val_00000001.JPEG")
+    (root / "LOC_val_solution.csv").write_text(
+        "ImageId,PredictionString\nILSVRC2012_val_00000001,n00000001 0 0 1 1\n",
+        encoding="utf-8",
+    )
+
+    train, val, test = data.build_datasets(
+        {
+            "name": "imagenet1k",
+            "root": str(root),
+            "layout": "kaggle_cls_loc",
+            "image_size": 8,
+            "crop_pct": 1.0,
+        },
+        include_test=False,
+    )
+
+    assert len(train) == 1
+    assert len(val) == 1
+    assert test is None
+    _, target = val[0]
+    assert target == 0
