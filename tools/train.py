@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
+import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -52,9 +53,23 @@ def main() -> None:
             if stale_path.exists():
                 stale_path.unlink()
 
+    setup_start = time.perf_counter()
+    print(f"setup: dataset={dataset_name} output={output_dir} device={device}", flush=True)
+    print("setup: building data loaders...", flush=True)
     train_loader, val_loader, test_loader = build_loaders(cfg.get("data", {}), include_test=not skip_test)
+    print(
+        "setup: data ready "
+        f"train_samples={len(train_loader.dataset)} train_batches={len(train_loader)} "
+        f"val_samples={len(val_loader.dataset)} val_batches={len(val_loader)} "
+        f"test_enabled={test_loader is not None} elapsed={time.perf_counter() - setup_start:.1f}s",
+        flush=True,
+    )
+    print("setup: building model...", flush=True)
     model = build_model(cfg).to(device)
+    param_count = sum(p.numel() for p in model.parameters())
+    print(f"setup: model ready params={param_count} elapsed={time.perf_counter() - setup_start:.1f}s", flush=True)
     if args.resume:
+        print(f"setup: loading checkpoint {args.resume}", flush=True)
         load_checkpoint(model, args.resume, device, strict=False)
 
     teacher = None
@@ -91,6 +106,7 @@ def main() -> None:
             float(train_cfg.get("pruning_crispness_weight", 0.0)),
         )
 
+    print(f"train: starting epochs={epochs} skip_test={skip_test}", flush=True)
     best_acc = 0.0
     best_epoch = -1
     for epoch in range(epochs):
