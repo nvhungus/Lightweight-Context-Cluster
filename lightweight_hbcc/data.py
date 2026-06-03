@@ -9,6 +9,7 @@ import zipfile
 import torch
 from PIL import Image
 from torch.utils.data import DataLoader, Subset
+from tqdm import tqdm
 from torchvision import datasets, transforms
 
 
@@ -19,6 +20,10 @@ CIFAR100_STD = (0.2675, 0.2565, 0.2761)
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+
+
+def _is_image_path(path: Path) -> bool:
+    return path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES
 
 
 def num_classes_for_dataset(name: str) -> int:
@@ -186,6 +191,7 @@ class KaggleImageNetValDataset(torch.utils.data.Dataset):
         solution_csv: Path,
         class_to_idx: dict[str, int],
         transform: transforms.Compose,
+        show_progress: bool = True,
     ) -> None:
         self.image_dir = image_dir
         self.transform = transform
@@ -193,15 +199,18 @@ class KaggleImageNetValDataset(torch.utils.data.Dataset):
         if not labels:
             raise ValueError(f"No validation labels found in {solution_csv}")
 
-        files_by_stem = {
-            path.stem: path
-            for path in image_dir.iterdir()
-            if path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES
-        }
+        image_files = [path for path in image_dir.iterdir() if _is_image_path(path)]
+        if show_progress:
+            iterator = tqdm(image_files, desc="index imagenet val files", unit="img", dynamic_ncols=True)
+            files_by_stem = {path.stem: path for path in iterator}
+        else:
+            files_by_stem = {path.stem: path for path in image_files}
         samples: list[tuple[Path, int]] = []
         missing_files: list[str] = []
         missing_classes: list[str] = []
-        for image_id, class_id in sorted(labels.items()):
+        label_items = sorted(labels.items())
+        iterator = tqdm(label_items, desc="index imagenet val labels", unit="img", dynamic_ncols=True) if show_progress else label_items
+        for image_id, class_id in iterator:
             image_path = files_by_stem.get(image_id)
             if image_path is None:
                 missing_files.append(image_id)
@@ -217,6 +226,45 @@ class KaggleImageNetValDataset(torch.utils.data.Dataset):
             preview = ", ".join(sorted(set(missing_classes))[:5])
             raise ValueError(f"Missing {len(set(missing_classes))} classes from train class folders. First missing: {preview}")
         self.samples = samples
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, int]:
+        path, target = self.samples[index]
+        with Image.open(path) as image:
+            image = image.convert("RGB")
+            if self.transform is not None:
+                image = self.transform(image)
+        return image, target
+
+
+class IndexedImageFolderDataset(torch.utils.data.Dataset):
+    def __init__(self, root: Path, transform: transforms.Compose, show_progress: bool = True, desc: str = "index imagefolder") -> None:
+        self.root = root
+        self.transform = transform
+        self.classes = sorted(path.name for path in root.iterdir() if path.is_dir())
+        if not self.classes:
+            raise FileNotFoundError(f"No class folders found in {root}")
+        self.class_to_idx = {class_name: idx for idx, class_name in enumerate(self.classes)}
+        samples: list[tuple[Path, int]] = []
+        iterator = tqdm(self.classes, desc=desc, unit="class", dynamic_ncols=True) if show_progress else self.classes
+        for class_name in iterator:
+            class_dir = root / class_name
+            class_samples = [
+                path
+                for path in sorted(class_dir.rglob("*"))
+                if _is_image_path(path)
+            ]
+            class_idx = self.class_to_idx[class_name]
+            samples.extend((path, class_idx) for path in class_samples)
+            if show_progress:
+                iterator.set_postfix(samples=len(samples))
+        if not samples:
+            raise FileNotFoundError(f"No image files found in {root}")
+        self.samples = samples
+        self.imgs = samples
+        self.targets = [target for _, target in samples]
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -310,20 +358,28 @@ def build_datasets(
         )
     elif name in {"imagenet", "imagenet1k", "imagenet-1k", "ilsvrc2012"}:
         layout = str(cfg.get("layout", "imagefolder")).lower()
+        show_index_progress = bool(cfg.get("show_index_progress", layout in {"kaggle", "kaggle_cls_loc", "cls_loc"}))
         default_train_split = "ILSVRC/Data/CLS-LOC/train" if layout in {"kaggle", "kaggle_cls_loc", "cls_loc"} else "train"
         default_val_split = "ILSVRC/Data/CLS-LOC/val" if layout in {"kaggle", "kaggle_cls_loc", "cls_loc"} else "val"
         train_split = str(cfg.get("train_split", default_train_split))
         val_split = str(cfg.get("val_split", default_val_split))
-        train = datasets.ImageFolder(root / train_split, transform=_transforms(name, True, augment, cfg))
         if layout in {"kaggle", "kaggle_cls_loc", "cls_loc"}:
+            train = IndexedImageFolderDataset(
+                root / train_split,
+                transform=_transforms(name, True, augment, cfg),
+                show_progress=show_index_progress,
+                desc="index imagenet train",
+            )
             solution_csv = _find_kaggle_solution_csv(root, cfg.get("solution_csv"))
             val = KaggleImageNetValDataset(
                 root / val_split,
                 solution_csv,
                 class_to_idx=train.class_to_idx,
                 transform=_transforms(name, False, False, cfg),
+                show_progress=show_index_progress,
             )
         else:
+            train = datasets.ImageFolder(root / train_split, transform=_transforms(name, True, augment, cfg))
             val = datasets.ImageFolder(root / val_split, transform=_transforms(name, False, False, cfg))
         test = None
         if include_test:

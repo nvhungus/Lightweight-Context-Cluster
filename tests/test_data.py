@@ -72,6 +72,7 @@ def test_imagenet_kaggle_cls_loc_layout_reads_flat_val(tmp_path) -> None:
             "name": "imagenet1k",
             "root": str(root),
             "layout": "kaggle_cls_loc",
+            "show_index_progress": False,
             "image_size": 8,
             "crop_pct": 1.0,
         },
