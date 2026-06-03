@@ -11,7 +11,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-& $Python docs\context-cluster\train.py `
+& $Python docs\Context-Cluster\train.py `
   --data_dir $ImageNetRoot `
   --train-split train `
   --val-split val `
@@ -27,7 +27,7 @@ $ErrorActionPreference = "Stop"
 
 $Checkpoint = "$Output\$Experiment\model_best.pth.tar"
 if (Test-Path $Checkpoint) {
-  & $Python docs\context-cluster\validate.py $ImageNetRoot `
+  & $Python docs\Context-Cluster\validate.py $ImageNetRoot `
     --split val `
     --model $Model `
     --num-classes 1000 `

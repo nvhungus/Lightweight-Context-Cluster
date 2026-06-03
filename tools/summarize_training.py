@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-import sys
 from typing import Any
 
 
@@ -56,7 +55,10 @@ def main() -> None:
             line += " test_acc5={test_acc5:.2f}".format(**test)
         print(line)
     else:
-        print("Held-out test: not available", file=sys.stderr)
+        line = "Reported validation: epoch={epoch}, acc1={val_acc1:.2f}, loss={val_loss:.4f}".format(**best)
+        if "val_acc5" in best:
+            line += " acc5={val_acc5:.2f}".format(**best)
+        print(line)
 
 
 if __name__ == "__main__":

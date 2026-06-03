@@ -5,13 +5,11 @@ data:
   root: data/imagenet
   train_split: train
   val_split: val
-  test_split: val
   image_size: 224
   crop_pct: 0.95
   interpolation: bicubic
   batch_size: 128
   val_batch_size: 256
-  test_batch_size: 256
   workers: 4
   augment: true
   randaugment:
@@ -42,6 +40,7 @@ model:
   stem_stride: 2
   drop_path_rate: 0.08
 train:
+  skip_test: true
   epochs: 300
   warmup_epochs: 5
   lr: 0.001

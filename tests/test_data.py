@@ -40,3 +40,14 @@ def test_cifar10_split_is_reproducible(monkeypatch) -> None:
 
     assert val_a.indices == val_b.indices
     assert val_a.indices != val_c.indices
+
+
+def test_dataset_builder_can_skip_test_split() -> None:
+    train, val, test = data.build_datasets(
+        {"name": "fake", "fake_train_size": 8, "fake_val_size": 4},
+        include_test=False,
+    )
+
+    assert len(train) == 8
+    assert len(val) == 4
+    assert test is None

@@ -18,9 +18,15 @@ def _load_official_module() -> ModuleType:
     global _OFFICIAL_MODULE
     if _OFFICIAL_MODULE is not None:
         return _OFFICIAL_MODULE
-    path = Path(__file__).resolve().parents[2] / "docs" / "context-cluster" / "models" / "context_cluster.py"
+    repo_root = Path(__file__).resolve().parents[2]
+    candidates = [
+        repo_root / "docs" / "Context-Cluster" / "models" / "context_cluster.py",
+        repo_root / "docs" / "context-cluster" / "models" / "context_cluster.py",
+    ]
+    path = next((candidate for candidate in candidates if candidate.exists()), candidates[0])
     if not path.exists():
-        raise FileNotFoundError(f"Official Context-Cluster code not found: {path}")
+        checked = ", ".join(str(candidate) for candidate in candidates)
+        raise FileNotFoundError(f"Official Context-Cluster code not found. Checked: {checked}")
     spec = importlib.util.spec_from_file_location("official_context_cluster", path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Could not load official Context-Cluster module from {path}")

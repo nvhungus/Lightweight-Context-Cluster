@@ -122,7 +122,8 @@ def _train_val_indices(length: int, val_size: int, seed: int) -> tuple[list[int]
 
 def build_datasets(
     cfg: dict[str, Any],
-) -> tuple[torch.utils.data.Dataset, torch.utils.data.Dataset, torch.utils.data.Dataset]:
+    include_test: bool = True,
+) -> tuple[torch.utils.data.Dataset, torch.utils.data.Dataset, torch.utils.data.Dataset | None]:
     name = str(cfg.get("name", "cifar10")).lower()
     root = Path(cfg.get("root", "data"))
     download = bool(cfg.get("download", True))
@@ -140,11 +141,15 @@ def build_datasets(
             transform=_transforms(name, False, False, cfg),
             download=download,
         )
-        test = datasets.CIFAR10(
-            root=root,
-            train=False,
-            transform=_transforms(name, False, False, cfg),
-            download=download,
+        test = (
+            datasets.CIFAR10(
+                root=root,
+                train=False,
+                transform=_transforms(name, False, False, cfg),
+                download=download,
+            )
+            if include_test
+            else None
         )
         val_size = int(cfg.get("val_size", 5000))
         split_seed = int(cfg.get("split_seed", 42))
@@ -164,11 +169,15 @@ def build_datasets(
             transform=_transforms(name, False, False, cfg),
             download=download,
         )
-        test = datasets.CIFAR100(
-            root=root,
-            train=False,
-            transform=_transforms(name, False, False, cfg),
-            download=download,
+        test = (
+            datasets.CIFAR100(
+                root=root,
+                train=False,
+                transform=_transforms(name, False, False, cfg),
+                download=download,
+            )
+            if include_test
+            else None
         )
         val_size = int(cfg.get("val_size", 5000))
         split_seed = int(cfg.get("split_seed", 42))
@@ -179,19 +188,25 @@ def build_datasets(
         transform = _transforms("cifar10", False, False, cfg)
         train = datasets.FakeData(size=int(cfg.get("fake_train_size", 512)), image_size=(3, 32, 32), num_classes=10, transform=transform)
         val = datasets.FakeData(size=int(cfg.get("fake_val_size", 128)), image_size=(3, 32, 32), num_classes=10, transform=transform)
-        test = datasets.FakeData(
-            size=int(cfg.get("fake_test_size", cfg.get("fake_val_size", 128))),
-            image_size=(3, 32, 32),
-            num_classes=10,
-            transform=transform,
+        test = (
+            datasets.FakeData(
+                size=int(cfg.get("fake_test_size", cfg.get("fake_val_size", 128))),
+                image_size=(3, 32, 32),
+                num_classes=10,
+                transform=transform,
+            )
+            if include_test
+            else None
         )
     elif name in {"imagenet", "imagenet1k", "imagenet-1k", "ilsvrc2012"}:
         train_split = str(cfg.get("train_split", "train"))
         val_split = str(cfg.get("val_split", "val"))
-        test_split = str(cfg.get("test_split", val_split))
         train = datasets.ImageFolder(root / train_split, transform=_transforms(name, True, augment, cfg))
         val = datasets.ImageFolder(root / val_split, transform=_transforms(name, False, False, cfg))
-        test = datasets.ImageFolder(root / test_split, transform=_transforms(name, False, False, cfg))
+        test = None
+        if include_test:
+            test_split = str(cfg.get("test_split", val_split))
+            test = datasets.ImageFolder(root / test_split, transform=_transforms(name, False, False, cfg))
     else:
         raise ValueError(f"Unsupported dataset: {name}")
     train_limit = cfg.get("train_limit")
@@ -201,13 +216,13 @@ def build_datasets(
         train = Subset(train, range(min(int(train_limit), len(train))))
     if val_limit:
         val = Subset(val, range(min(int(val_limit), len(val))))
-    if test_limit:
+    if test is not None and test_limit:
         test = Subset(test, range(min(int(test_limit), len(test))))
     return train, val, test
 
 
-def build_loaders(cfg: dict[str, Any]) -> tuple[DataLoader, DataLoader, DataLoader]:
-    train_set, val_set, test_set = build_datasets(cfg)
+def build_loaders(cfg: dict[str, Any], include_test: bool = True) -> tuple[DataLoader, DataLoader, DataLoader | None]:
+    train_set, val_set, test_set = build_datasets(cfg, include_test=include_test)
     batch_size = int(cfg.get("batch_size", 128))
     val_batch_size = int(cfg.get("val_batch_size", batch_size))
     test_batch_size = int(cfg.get("test_batch_size", val_batch_size))
@@ -228,11 +243,13 @@ def build_loaders(cfg: dict[str, Any]) -> tuple[DataLoader, DataLoader, DataLoad
         num_workers=workers,
         pin_memory=pin_memory,
     )
-    test_loader = DataLoader(
-        test_set,
-        batch_size=test_batch_size,
-        shuffle=False,
-        num_workers=workers,
-        pin_memory=pin_memory,
-    )
+    test_loader = None
+    if test_set is not None:
+        test_loader = DataLoader(
+            test_set,
+            batch_size=test_batch_size,
+            shuffle=False,
+            num_workers=workers,
+            pin_memory=pin_memory,
+        )
     return train_loader, val_loader, test_loader

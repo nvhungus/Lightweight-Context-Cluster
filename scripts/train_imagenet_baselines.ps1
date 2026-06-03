@@ -8,7 +8,6 @@ param(
 $ErrorActionPreference = "Stop"
 
 $configs = @(
-  "configs\imagenet\resnet18_imagenet.yaml",
   "configs\imagenet\hbcc_accuracy_small_imagenet.yaml",
   "configs\imagenet\hbcc_accuracy_medium_imagenet.yaml"
 )
@@ -23,7 +22,6 @@ foreach ($config in $configs) {
 }
 
 $benchmarks = @(
-  @("configs\imagenet\resnet18_imagenet.yaml", "$Output\resnet18_imagenet\best.pth"),
   @("configs\imagenet\hbcc_accuracy_small_imagenet.yaml", "$Output\hbcc_accuracy_small_imagenet\best.pth"),
   @("configs\imagenet\hbcc_accuracy_medium_imagenet.yaml", "$Output\hbcc_accuracy_medium_imagenet\best.pth")
 )

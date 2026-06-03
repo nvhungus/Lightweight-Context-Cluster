@@ -39,6 +39,8 @@ def main() -> None:
     cfg = apply_overrides(load_config(args.config), args.override)
     dataset_name = cfg.get("data", {}).get("name", "cifar10")
     cfg.setdefault("model", {})["num_classes"] = cfg["model"].get("num_classes", num_classes_for_dataset(dataset_name))
+    train_cfg = cfg.get("train", {})
+    skip_test = args.skip_test or bool(train_cfg.get("skip_test", False))
     device = resolve_device(args.device)
     output_dir = Path(args.output) / cfg.get("experiment", {}).get("name", Path(args.config).stem)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -50,7 +52,7 @@ def main() -> None:
             if stale_path.exists():
                 stale_path.unlink()
 
-    train_loader, val_loader, test_loader = build_loaders(cfg.get("data", {}))
+    train_loader, val_loader, test_loader = build_loaders(cfg.get("data", {}), include_test=not skip_test)
     model = build_model(cfg).to(device)
     if args.resume:
         load_checkpoint(model, args.resume, device, strict=False)
@@ -63,7 +65,6 @@ def main() -> None:
         load_checkpoint(teacher, args.teacher_checkpoint, device, strict=True)
         teacher.eval()
 
-    train_cfg = cfg.get("train", {})
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=float(train_cfg.get("lr", 1e-3)),
@@ -153,7 +154,9 @@ def main() -> None:
                 print(json.dumps(record, indent=2))
 
     best_path = output_dir / "best.pth"
-    if not args.skip_test and best_path.exists():
+    if not skip_test and best_path.exists():
+        if test_loader is None:
+            raise RuntimeError("Final test evaluation was requested, but no test loader was created.")
         load_checkpoint(model, best_path, device, strict=True)
         test_metrics = evaluate(
             model,

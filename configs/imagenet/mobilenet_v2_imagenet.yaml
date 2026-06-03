@@ -5,19 +5,18 @@ data:
   root: data/imagenet
   train_split: train
   val_split: val
-  test_split: val
   image_size: 224
   crop_pct: 0.875
   interpolation: bilinear
   batch_size: 128
   val_batch_size: 256
-  test_batch_size: 256
   workers: 4
   augment: true
 model:
   name: mobilenet_v2_imagenet
   num_classes: 1000
 train:
+  skip_test: true
   epochs: 300
   warmup_epochs: 5
   lr: 0.001

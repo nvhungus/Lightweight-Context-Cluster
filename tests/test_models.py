@@ -39,9 +39,12 @@ def test_all_reference_models_forward() -> None:
 
 
 def test_official_coc_tiny_imagenet_materializes() -> None:
-    official_code = Path("docs/context-cluster/models/context_cluster.py")
-    if not official_code.exists():
-        pytest.skip(f"Official Context-Cluster code not found: {official_code}")
+    official_candidates = [
+        Path("docs/Context-Cluster/models/context_cluster.py"),
+        Path("docs/context-cluster/models/context_cluster.py"),
+    ]
+    if not any(path.exists() for path in official_candidates):
+        pytest.skip(f"Official Context-Cluster code not found: {official_candidates[0]}")
     cfg = load_config("configs/imagenet/official_coc_tiny_imagenet.yaml")
     model = build_model(cfg)
     total_params = sum(p.numel() for p in model.parameters())

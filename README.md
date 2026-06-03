@@ -5,7 +5,7 @@ This workspace implements the research plan in `docs/lightweight_hbcc_research_p
 ## Environment
 
 The target conda environment is `CoC`. On this machine it has been initialized with Python 3.11 and CUDA PyTorch.
-The official Context-Cluster ImageNet scripts in `docs/context-cluster` require `timm==0.6.13`.
+The official Context-Cluster ImageNet scripts in `docs/Context-Cluster` require `timm==0.6.13`.
 
 ```powershell
 conda activate CoC
@@ -76,9 +76,9 @@ class-folder based but `val` is flat. Convert it to the structure above with:
 ```
 
 The public ImageNet-1k benchmark reports accuracy on the official validation
-split. The ImageNet configs therefore set both `val_split` and `test_split` to
-`val`; `test_acc1` is the final official validation accuracy, not a hidden
-test-set metric.
+split. Matching the Context-Cluster paper and official code, ImageNet configs
+train on `train/`, evaluate on `val/`, and set `train.skip_test: true`; `val_acc1`
+is the reported ImageNet accuracy.
 
 Student CE-only:
 
@@ -98,14 +98,14 @@ Knowledge distillation:
 & D:\Anaconda\envs\CoC\python.exe tools\train.py --config configs\hbcc_latency_tiny.yaml --output runs_kd --teacher-config configs\baselines\resnet18_cifar.yaml --teacher-checkpoint runs\resnet18_cifar\best.pth --override train.kd_alpha=0.5 --override train.kd_temperature=4.0
 ```
 
-Official Context-Cluster ImageNet baseline from `docs/context-cluster`:
+Official Context-Cluster ImageNet baseline from `docs/Context-Cluster`:
 
 ```powershell
 & .\scripts\train_official_coc_imagenet.ps1 -ImageNetRoot data\imagenet
 ```
 
 Selected ImageNet training matrix through this repo's trainer, including
-`resnet18_imagenet` and `hbcc_accuracy_small/medium` converted to ImageNet:
+`hbcc_accuracy_small/medium` converted to ImageNet:
 
 ```powershell
 & .\scripts\train_imagenet_baselines.ps1 -ImageNetRoot data\imagenet
@@ -124,7 +124,7 @@ The notebook version of this workflow is `notebooks/imagenet_baseline_pipeline.i
 ```
 
 Trained accuracy can be added to benchmark JSON records from `runs/*/metrics.jsonl` before building final Pareto tables.
-Use `val_acc1` for model selection and `test_acc1` for final held-out reporting.
+For CIFAR runs, use `test_acc1` for held-out reporting. For ImageNet runs that match Context-Cluster, use `val_acc1` as the reported official validation accuracy.
 
 ```powershell
 & D:\Anaconda\envs\CoC\python.exe tools\pareto_report.py results\benchmark --output results\pareto.md
