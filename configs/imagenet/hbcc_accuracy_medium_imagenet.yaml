@@ -8,8 +8,8 @@ data:
   image_size: 224
   crop_pct: 0.95
   interpolation: bicubic
-  batch_size: 128
-  val_batch_size: 256
+  batch_size: 64
+  val_batch_size: 64
   workers: 4
   augment: true
   randaugment:
