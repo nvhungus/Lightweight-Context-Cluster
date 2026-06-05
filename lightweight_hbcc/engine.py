@@ -15,6 +15,10 @@ from .losses import DistillationLoss, smooth_one_hot
 from .metrics import AverageMeter, accuracy
 
 
+PROGRESS_BAR_FORMAT = "{desc}: {percentage:3.0f}%|{bar:12}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]"
+PROGRESS_NCOLS = 96
+
+
 def resolve_device(device: str = "auto") -> torch.device:
     if device == "auto":
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -103,7 +107,16 @@ def train_one_epoch(
     loss_meter = AverageMeter()
     acc_meter = AverageMeter()
     start = time.perf_counter()
-    pbar = tqdm(loader, desc=f"train {epoch}", leave=False, disable=not progress, dynamic_ncols=True, mininterval=0.5)
+    pbar = tqdm(
+        loader,
+        desc=f"train {epoch}",
+        leave=False,
+        disable=not progress,
+        dynamic_ncols=False,
+        ncols=PROGRESS_NCOLS,
+        mininterval=0.5,
+        bar_format=PROGRESS_BAR_FORMAT,
+    )
     for step, (images, target) in enumerate(pbar):
         if limit_batches is not None and step >= limit_batches:
             break
@@ -156,7 +169,16 @@ def evaluate(
     acc5_meter = AverageMeter()
     start = time.perf_counter()
     for step, (images, target) in enumerate(
-        tqdm(loader, desc=prefix, leave=False, disable=not progress, dynamic_ncols=True, mininterval=0.5)
+        tqdm(
+            loader,
+            desc=prefix,
+            leave=False,
+            disable=not progress,
+            dynamic_ncols=False,
+            ncols=PROGRESS_NCOLS,
+            mininterval=0.5,
+            bar_format=PROGRESS_BAR_FORMAT,
+        )
     ):
         if limit_batches is not None and step >= limit_batches:
             break

@@ -1,17 +1,20 @@
 experiment:
-  name: hbcc_accuracy_medium_imagenet
+  name: hbcc_accuracy_small_stl10
 data:
-  name: imagenet1k
-  root: data/imagenet
-  train_split: train
-  val_split: val
-  image_size: 224
-  crop_pct: 0.95
+  name: stl10
+  root: data
+  download: true
+  image_size: 96
+  crop_pct: 1.0
   interpolation: bicubic
   batch_size: 64
-  val_batch_size: 64
-  workers: 4
+  val_batch_size: 128
+  test_batch_size: 128
+  val_size: 500
+  split_seed: 42
+  workers: 2
   augment: true
+  padding: 12
   randaugment:
     enabled: true
     num_ops: 2
@@ -22,12 +25,12 @@ data:
     ratio: [0.3, 3.3]
 model:
   name: hbcc
-  num_classes: 1000
+  num_classes: 10
   use_coord: true
-  embed_dims: [64, 96, 192, 256]
-  depths: [2, 2, 4, 2]
+  embed_dims: [48, 80, 160, 224]
+  depths: [2, 2, 3, 1]
   mlp_ratios: 3.0
-  heads: [2, 3, 4, 4]
+  heads: [2, 2, 4, 4]
   head_dim: [16, 16, 16, 16]
   proposals: [[2, 2], [2, 2], [2, 2], [2, 2]]
   folds: [[4, 4], [2, 2], [1, 1], [1, 1]]
@@ -38,17 +41,16 @@ model:
   channel_shuffle: [true, true, false, false]
   norm: bn
   stem_stride: 2
-  drop_path_rate: 0.12
+  drop_path_rate: 0.08
 train:
-  skip_test: true
-  epochs: 2
-  warmup_epochs: 0
+  epochs: 300
+  warmup_epochs: 5
   lr: 0.001
   weight_decay: 0.05
   label_smoothing: 0.1
-  mixup_alpha: 0.8
+  mixup_alpha: 0.2
   cutmix_alpha: 1.0
-  cutmix_prob: 1.0
+  cutmix_prob: 0.5
   amp: true
   kd_alpha: 0.0
   kd_temperature: 4.0

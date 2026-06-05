@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-import pytest
 import torch
 
 from lightweight_hbcc.config import load_config
@@ -38,30 +35,17 @@ def test_all_reference_models_forward() -> None:
         assert y.shape == (1, 10), path
 
 
-def test_official_coc_tiny_imagenet_materializes() -> None:
-    official_candidates = [
-        Path("docs/Context-Cluster/models/context_cluster.py"),
-        Path("docs/context-cluster/models/context_cluster.py"),
-    ]
-    if not any(path.exists() for path in official_candidates):
-        pytest.skip(f"Official Context-Cluster code not found: {official_candidates[0]}")
-    cfg = load_config("configs/imagenet/official_coc_tiny_imagenet.yaml")
-    model = build_model(cfg)
-    total_params = sum(p.numel() for p in model.parameters())
-    assert getattr(model, "num_classes") == 1000
-    assert total_params > 5_000_000
-
-
-def test_hbcc_accuracy_imagenet_configs_forward() -> None:
+def test_stl10_configs_forward() -> None:
     for path in [
-        "configs/imagenet/hbcc_accuracy_small_imagenet.yaml",
-        "configs/imagenet/hbcc_accuracy_medium_imagenet.yaml",
+        "configs/stl10/hbcc_accuracy_small_stl10.yaml",
+        "configs/stl10/hbcc_accuracy_medium_stl10.yaml",
+        "configs/stl10/resnet18_stl10.yaml",
     ]:
         cfg = load_config(path)
         model = build_model(cfg).eval()
         with torch.no_grad():
-            y = model(torch.randn(1, 3, 224, 224))
-        assert y.shape == (1, 1000), path
+            y = model(torch.randn(1, 3, 96, 96))
+        assert y.shape == (1, 10), path
 
 
 def test_sign_ste_backward() -> None:
