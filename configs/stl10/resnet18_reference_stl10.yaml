@@ -1,5 +1,5 @@
 experiment:
-  name: resnet18_stl10
+  name: resnet18_reference_stl10
 data:
   name: stl10
   root: data

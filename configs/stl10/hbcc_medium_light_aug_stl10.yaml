@@ -1,5 +1,5 @@
 experiment:
-  name: hbcc_accuracy_small_stl10
+  name: hbcc_medium_light_aug_stl10
 data:
   name: stl10
   root: data
@@ -18,19 +18,19 @@ data:
   randaugment:
     enabled: true
     num_ops: 2
-    magnitude: 9
+    magnitude: 7
   random_erasing:
-    p: 0.25
-    scale: [0.02, 0.2]
+    p: 0.1
+    scale: [0.02, 0.15]
     ratio: [0.3, 3.3]
 model:
   name: hbcc
   num_classes: 10
   use_coord: true
-  embed_dims: [48, 80, 160, 224]
-  depths: [2, 2, 3, 1]
+  embed_dims: [64, 96, 192, 256]
+  depths: [2, 2, 4, 2]
   mlp_ratios: 3.0
-  heads: [2, 2, 4, 4]
+  heads: [2, 3, 4, 4]
   head_dim: [16, 16, 16, 16]
   proposals: [[2, 2], [2, 2], [2, 2], [2, 2]]
   folds: [[4, 4], [2, 2], [1, 1], [1, 1]]
@@ -46,11 +46,11 @@ train:
   epochs: 300
   warmup_epochs: 5
   lr: 0.001
-  weight_decay: 0.05
-  label_smoothing: 0.1
-  mixup_alpha: 0.2
-  cutmix_alpha: 1.0
-  cutmix_prob: 0.5
+  weight_decay: 0.02
+  label_smoothing: 0.05
+  mixup_alpha: 0.0
+  cutmix_alpha: 0.0
+  cutmix_prob: 0.0
   amp: true
   kd_alpha: 0.0
-  kd_temperature: 4.0
+  kd_temperature: 3.0

@@ -37,9 +37,10 @@ def test_all_reference_models_forward() -> None:
 
 def test_stl10_configs_forward() -> None:
     for path in [
-        "configs/stl10/hbcc_accuracy_small_stl10.yaml",
-        "configs/stl10/hbcc_accuracy_medium_stl10.yaml",
-        "configs/stl10/resnet18_stl10.yaml",
+        "configs/stl10/resnet18_reference_stl10.yaml",
+        "configs/stl10/hbcc_small_no_mix_stl10.yaml",
+        "configs/stl10/hbcc_small_light_aug_stl10.yaml",
+        "configs/stl10/hbcc_local_heavy_stl10.yaml",
     ]:
         cfg = load_config(path)
         model = build_model(cfg).eval()

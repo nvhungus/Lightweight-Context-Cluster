@@ -23,9 +23,9 @@ from .official_context_cluster import (
 
 MODEL_REGISTRY: dict[str, Callable[..., nn.Module]] = {
     "resnet18_cifar": resnet18_cifar,
+    "resnet18_stl10": resnet18_stl10,
     "mobilenet_v2_cifar": mobilenet_v2_cifar,
     "shufflenet_v2_x1_0_cifar": shufflenet_v2_x1_0_cifar,
-    "resnet18_stl10": resnet18_stl10,
     "official_context_cluster": official_context_cluster,
     "official_coc_tiny": official_coc_tiny,
     "official_coc_tiny_plain": official_coc_tiny_plain,

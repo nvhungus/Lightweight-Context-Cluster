@@ -80,13 +80,17 @@ Knowledge distillation:
 & D:\Anaconda\envs\CoC\python.exe tools\train.py --config configs\hbcc_latency_tiny.yaml --output runs_kd --teacher-config configs\baselines\resnet18_cifar.yaml --teacher-checkpoint runs\resnet18_cifar\best.pth --override train.kd_alpha=0.5 --override train.kd_temperature=4.0
 ```
 
-Selected STL-10 training matrix through this repo's trainer:
+Full STL-10 experiment matrix:
 
 ```powershell
-& .\scripts\train_stl10_baselines.ps1
+& D:\Anaconda\envs\CoC\python.exe tools\run_stl10_experiments.py
 ```
 
-The notebook version of this workflow is `notebooks/stl10_training_pipeline.ipynb`.
+Quick STL-10 smoke check:
+
+```powershell
+& D:\Anaconda\envs\CoC\python.exe tools\run_stl10_experiments.py --smoke --only resnet18_reference_stl10 hbcc_small_no_mix_stl10 --skip-kd
+```
 
 ## Benchmark Matrix
 
