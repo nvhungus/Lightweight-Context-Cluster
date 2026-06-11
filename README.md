@@ -62,6 +62,11 @@ reporting:
 Validation metrics are written into `metrics.jsonl` every epoch. Final test
 metrics are written to both `metrics.jsonl` and `test_metrics.json`.
 
+CIFAR-100 follows the same method as the CIFAR-10 pipeline: reuse the CIFAR-10
+configs and add overrides for `data.name=cifar100`, `model.num_classes=100`,
+and a CIFAR-100-specific `experiment.name`. See
+`notebooks/cifar100_training_pipeline.ipynb` for the phase-by-phase workflow.
+
 Student CE-only:
 
 ```powershell
@@ -86,7 +91,7 @@ Full STL-10 experiment matrix:
 & D:\Anaconda\envs\CoC\python.exe tools\run_stl10_experiments.py
 ```
 
-Full CIFAR-100 experiment matrix:
+Full CIFAR-100 pipeline using the CIFAR-10 method:
 
 ```powershell
 & D:\Anaconda\envs\CoC\python.exe tools\run_cifar100_experiments.py
@@ -101,7 +106,7 @@ Quick STL-10 smoke check:
 Quick CIFAR-100 smoke check:
 
 ```powershell
-& D:\Anaconda\envs\CoC\python.exe tools\run_cifar100_experiments.py --smoke --only resnet18_reference_cifar100 hbcc_small_no_mix_cifar100 --skip-kd
+& D:\Anaconda\envs\CoC\python.exe tools\run_cifar100_experiments.py --smoke --only resnet18_cifar100 hbcc_latency_tiny_cifar100 --skip-kd
 ```
 
 ## Benchmark Matrix

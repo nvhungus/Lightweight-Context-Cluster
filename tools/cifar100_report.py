@@ -9,7 +9,7 @@ from typing import Any
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Collect CIFAR-100 train/test and benchmark metrics into one CSV.")
-    parser.add_argument("--runs", default="runs_cifar100")
+    parser.add_argument("--runs", nargs="+", default=["runs_cifar100"])
     parser.add_argument("--benchmarks", default="results/benchmark_cifar100")
     parser.add_argument("--output", default="results/cifar100_summary.csv")
     return parser.parse_args()
@@ -69,14 +69,15 @@ def _run_record(run_dir: Path, benchmarks: dict[str, dict[str, Any]]) -> dict[st
 
 def main() -> None:
     args = parse_args()
-    run_root = Path(args.runs)
+    run_roots = [Path(item) for item in args.runs]
     benchmarks = _benchmark_records(Path(args.benchmarks))
     records: list[dict[str, Any]] = []
-    if run_root.exists():
-        for run_dir in sorted(path for path in run_root.iterdir() if path.is_dir()):
-            record = _run_record(run_dir, benchmarks)
-            if record is not None:
-                records.append(record)
+    for run_root in run_roots:
+        if run_root.exists():
+            for run_dir in sorted(path for path in run_root.iterdir() if path.is_dir()):
+                record = _run_record(run_dir, benchmarks)
+                if record is not None:
+                    records.append(record)
 
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)

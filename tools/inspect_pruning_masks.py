@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from lightweight_hbcc.config import load_config
+from lightweight_hbcc.config import apply_overrides, load_config
 from lightweight_hbcc.engine import load_checkpoint, resolve_device
 from lightweight_hbcc.models import build_model
 from lightweight_hbcc.pruning import collect_stage_masks, summarize_masks
@@ -21,13 +21,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--round-to", type=int, default=8)
     parser.add_argument("--min-channels", type=int, default=8)
     parser.add_argument("--device", default="auto")
+    parser.add_argument("--override", action="append", default=[])
     parser.add_argument("--json", action="store_true")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    cfg = load_config(args.config)
+    cfg = apply_overrides(load_config(args.config), args.override)
     device = resolve_device(args.device)
     model = build_model(cfg).to(device)
     load_checkpoint(model, args.checkpoint, device, strict=False)
