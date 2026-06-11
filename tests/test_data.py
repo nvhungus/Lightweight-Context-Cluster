@@ -18,6 +18,19 @@ class DummyCIFAR(torch.utils.data.Dataset):
         return torch.zeros(3, 32, 32), index % 10
 
 
+class DummyCIFAR100(torch.utils.data.Dataset):
+    def __init__(self, root: str, train: bool, transform=None, download: bool = False) -> None:
+        self.train = train
+        self.transform = transform
+        self.download = download
+
+    def __len__(self) -> int:
+        return 50_000 if self.train else 10_000
+
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, int]:
+        return torch.zeros(3, 32, 32), index % 100
+
+
 class DummySTL10(torch.utils.data.Dataset):
     def __init__(self, root: str, split: str, transform=None, download: bool = False) -> None:
         self.split = split
@@ -53,6 +66,20 @@ def test_cifar10_split_is_reproducible(monkeypatch) -> None:
 
     assert val_a.indices == val_b.indices
     assert val_a.indices != val_c.indices
+
+
+def test_cifar100_uses_train_val_test_split(monkeypatch) -> None:
+    monkeypatch.setattr(data.datasets, "CIFAR100", DummyCIFAR100)
+
+    train, val, test = data.build_datasets(
+        {"name": "cifar100", "download": False, "val_size": 5000, "split_seed": 123}
+    )
+
+    assert data.num_classes_for_dataset("cifar100") == 100
+    assert len(train) == 45_000
+    assert len(val) == 5_000
+    assert len(test) == 10_000
+    assert set(train.indices).isdisjoint(set(val.indices))
 
 
 def test_dataset_builder_can_skip_test_split() -> None:

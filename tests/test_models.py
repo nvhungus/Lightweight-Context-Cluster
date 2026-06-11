@@ -49,6 +49,19 @@ def test_stl10_configs_forward() -> None:
         assert y.shape == (1, 10), path
 
 
+def test_cifar100_configs_forward() -> None:
+    for path in [
+        "configs/cifar100/resnet18_reference_cifar100.yaml",
+        "configs/cifar100/hbcc_small_light_aug_cifar100.yaml",
+        "configs/cifar100/hbcc_medium_light_aug_cifar100.yaml",
+    ]:
+        cfg = load_config(path)
+        model = build_model(cfg).eval()
+        with torch.no_grad():
+            y = model(torch.randn(1, 3, 32, 32))
+        assert y.shape == (1, 100), path
+
+
 def test_sign_ste_backward() -> None:
     x = torch.tensor([-2.0, -0.5, 0.5, 2.0], requires_grad=True)
     y = sign_ste(x).sum()

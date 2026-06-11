@@ -86,10 +86,22 @@ Full STL-10 experiment matrix:
 & D:\Anaconda\envs\CoC\python.exe tools\run_stl10_experiments.py
 ```
 
+Full CIFAR-100 experiment matrix:
+
+```powershell
+& D:\Anaconda\envs\CoC\python.exe tools\run_cifar100_experiments.py
+```
+
 Quick STL-10 smoke check:
 
 ```powershell
 & D:\Anaconda\envs\CoC\python.exe tools\run_stl10_experiments.py --smoke --only resnet18_reference_stl10 hbcc_small_no_mix_stl10 --skip-kd
+```
+
+Quick CIFAR-100 smoke check:
+
+```powershell
+& D:\Anaconda\envs\CoC\python.exe tools\run_cifar100_experiments.py --smoke --only resnet18_reference_cifar100 hbcc_small_no_mix_cifar100 --skip-kd
 ```
 
 ## Benchmark Matrix
