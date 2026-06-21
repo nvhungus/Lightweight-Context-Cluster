@@ -48,16 +48,13 @@ When `conda activate` is unreliable, call the interpreter directly:
 
 ## Training
 
-For CIFAR-10, CIFAR-100, and STL-10, the training pipeline uses the original
-training split for model selection and keeps the official test split for final
+For CIFAR-10 and CIFAR-100, the training pipeline uses the original training
+split for model selection and keeps the official test split for final
 reporting:
 
 - CIFAR-10/CIFAR-100 `train`: 45k images from the original training split
 - CIFAR-10/CIFAR-100 `val`: 5k images from the original training split, controlled by `data.split_seed`
 - CIFAR-10/CIFAR-100 `test`: official 10k test split, evaluated once on `best.pth`
-- STL-10 `train`: 4.5k images from official STL-10 train
-- STL-10 `val`: 500 images from official STL-10 train, controlled by `data.split_seed`
-- STL-10 `test`: official 8k test split, evaluated once on `best.pth`
 
 Validation metrics are written into `metrics.jsonl` every epoch. Final test
 metrics are written to both `metrics.jsonl` and `test_metrics.json`.
@@ -65,7 +62,9 @@ metrics are written to both `metrics.jsonl` and `test_metrics.json`.
 CIFAR-100 follows the same method as the CIFAR-10 pipeline: reuse the CIFAR-10
 configs and add overrides for `data.name=cifar100`, `model.num_classes=100`,
 and a CIFAR-100-specific `experiment.name`. See
-`notebooks/cifar100_training_pipeline.ipynb` for the phase-by-phase workflow.
+`notebooks/cifar10_training_pipeline.ipynb` and
+`notebooks/cifar100_training_pipeline.ipynb` for the phase-by-phase workflow
+used to produce the published results for each dataset.
 
 Student CE-only:
 
@@ -85,22 +84,10 @@ Knowledge distillation:
 & D:\Anaconda\envs\CoC\python.exe tools\train.py --config configs\hbcc_latency_tiny.yaml --output runs_kd --teacher-config configs\baselines\resnet18_cifar.yaml --teacher-checkpoint runs\resnet18_cifar\best.pth --override train.kd_alpha=0.5 --override train.kd_temperature=4.0
 ```
 
-Full STL-10 experiment matrix:
-
-```powershell
-& D:\Anaconda\envs\CoC\python.exe tools\run_stl10_experiments.py
-```
-
 Full CIFAR-100 pipeline using the CIFAR-10 method:
 
 ```powershell
 & D:\Anaconda\envs\CoC\python.exe tools\run_cifar100_experiments.py
-```
-
-Quick STL-10 smoke check:
-
-```powershell
-& D:\Anaconda\envs\CoC\python.exe tools\run_stl10_experiments.py --smoke --only resnet18_reference_stl10 hbcc_small_no_mix_stl10 --skip-kd
 ```
 
 Quick CIFAR-100 smoke check:
@@ -120,7 +107,7 @@ Quick CIFAR-100 smoke check:
 ```
 
 Trained accuracy can be added to benchmark JSON records from `runs/*/metrics.jsonl` before building final Pareto tables.
-For CIFAR/STL-10 runs, use `test_acc1` for held-out reporting.
+For CIFAR-10/CIFAR-100 runs, use `test_acc1` for held-out reporting.
 
 ```powershell
 & D:\Anaconda\envs\CoC\python.exe tools\pareto_report.py results\benchmark --output results\pareto.md

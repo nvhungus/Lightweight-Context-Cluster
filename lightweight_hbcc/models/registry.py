@@ -8,7 +8,6 @@ from torch import nn
 from .baselines import (
     mobilenet_v2_cifar,
     resnet18_cifar,
-    resnet18_stl10,
     shufflenet_v2_x1_0_cifar,
 )
 from .hbcc import HBCCNet, coc_cifar_baseline, hbcc_current_reference, hbcc_latency_small, hbcc_latency_tiny
@@ -23,7 +22,6 @@ from .official_context_cluster import (
 
 MODEL_REGISTRY: dict[str, Callable[..., nn.Module]] = {
     "resnet18_cifar": resnet18_cifar,
-    "resnet18_stl10": resnet18_stl10,
     "mobilenet_v2_cifar": mobilenet_v2_cifar,
     "shufflenet_v2_x1_0_cifar": shufflenet_v2_x1_0_cifar,
     "official_context_cluster": official_context_cluster,

@@ -12,8 +12,6 @@ CIFAR10_MEAN = (0.4914, 0.4822, 0.4465)
 CIFAR10_STD = (0.2470, 0.2435, 0.2616)
 CIFAR100_MEAN = (0.5071, 0.4867, 0.4408)
 CIFAR100_STD = (0.2675, 0.2565, 0.2761)
-STL10_MEAN = (0.4467, 0.4398, 0.4066)
-STL10_STD = (0.2603, 0.2566, 0.2713)
 
 
 def num_classes_for_dataset(name: str) -> int:
@@ -22,8 +20,6 @@ def num_classes_for_dataset(name: str) -> int:
         return 10
     if name == "cifar100":
         return 100
-    if name in {"stl10", "stl-10"}:
-        return 10
     if name == "fake":
         return 10
     raise ValueError(f"Unsupported dataset: {name}")
@@ -32,51 +28,6 @@ def num_classes_for_dataset(name: str) -> int:
 def _transforms(name: str, train: bool, augment: bool, cfg: dict[str, Any] | None = None) -> transforms.Compose:
     cfg = cfg or {}
     name = name.lower()
-    if name in {"stl10", "stl-10"}:
-        image_size = int(cfg.get("image_size", 96))
-        crop_pct = float(cfg.get("crop_pct", 1.0))
-        interpolation = transforms.InterpolationMode.BICUBIC
-        if str(cfg.get("interpolation", "bicubic")).lower() in {"bilinear", "linear"}:
-            interpolation = transforms.InterpolationMode.BILINEAR
-        ops: list[Any] = []
-        if train and augment:
-            if bool(cfg.get("random_resized_crop", False)):
-                ops.append(
-                    transforms.RandomResizedCrop(
-                        image_size,
-                        scale=tuple(cfg.get("rrc_scale", [0.8, 1.0])),
-                        interpolation=interpolation,
-                    )
-                )
-            else:
-                ops.append(transforms.RandomCrop(image_size, padding=int(cfg.get("padding", 12))))
-            ops.append(transforms.RandomHorizontalFlip())
-            randaugment = cfg.get("randaugment", {})
-            if isinstance(randaugment, dict) and randaugment.get("enabled", False):
-                ops.append(
-                    transforms.RandAugment(
-                        num_ops=int(randaugment.get("num_ops", 2)),
-                        magnitude=int(randaugment.get("magnitude", 9)),
-                    )
-                )
-        else:
-            resize_size = int(round(image_size / crop_pct))
-            if resize_size != image_size:
-                ops.append(transforms.Resize(resize_size, interpolation=interpolation))
-            ops.append(transforms.CenterCrop(image_size))
-        ops.extend([transforms.ToTensor(), transforms.Normalize(STL10_MEAN, STL10_STD)])
-        if train and augment:
-            random_erasing = cfg.get("random_erasing", {})
-            if isinstance(random_erasing, dict) and random_erasing.get("p", 0.0) > 0:
-                ops.append(
-                    transforms.RandomErasing(
-                        p=float(random_erasing.get("p", 0.25)),
-                        scale=tuple(random_erasing.get("scale", [0.02, 0.2])),
-                        ratio=tuple(random_erasing.get("ratio", [0.3, 3.3])),
-                        value=float(random_erasing.get("value", 0.0)),
-                    )
-                )
-        return transforms.Compose(ops)
     if name == "cifar100":
         mean, std = CIFAR100_MEAN, CIFAR100_STD
     else:
@@ -182,34 +133,6 @@ def build_datasets(
             else None
         )
         val_size = int(cfg.get("val_size", 5000))
-        split_seed = int(cfg.get("split_seed", 42))
-        train_indices, val_indices = _train_val_indices(len(train_full), val_size, split_seed)
-        train = Subset(train_full, train_indices)
-        val = Subset(val_full, val_indices)
-    elif name in {"stl10", "stl-10"}:
-        train_full = datasets.STL10(
-            root=root,
-            split="train",
-            transform=_transforms(name, True, augment, cfg),
-            download=download,
-        )
-        val_full = datasets.STL10(
-            root=root,
-            split="train",
-            transform=_transforms(name, False, False, cfg),
-            download=download,
-        )
-        test = (
-            datasets.STL10(
-                root=root,
-                split="test",
-                transform=_transforms(name, False, False, cfg),
-                download=download,
-            )
-            if include_test
-            else None
-        )
-        val_size = int(cfg.get("val_size", 500))
         split_seed = int(cfg.get("split_seed", 42))
         train_indices, val_indices = _train_val_indices(len(train_full), val_size, split_seed)
         train = Subset(train_full, train_indices)
