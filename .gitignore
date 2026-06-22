@@ -7,7 +7,11 @@ __pycache__/
 data/
 runs/
 runs_*/
-results/
+results/*
+!results/*.csv
+!results/*.md
+!results/benchmark/
+!results/benchmark_cifar100/
 checkpoints/
 artifacts/
 external/
