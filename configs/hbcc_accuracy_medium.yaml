@@ -24,11 +24,11 @@ model:
   num_classes: 10
   use_coord: true
   embed_dims: [64, 96, 192, 256]
-  depths: [2, 2, 4, 2]
+  depths: [1, 1, 2, 1]
   mlp_ratios: 3.0
   heads: [2, 3, 4, 4]
   head_dim: [16, 16, 16, 16]
-  proposals: [[2, 2], [2, 2], [2, 2], [2, 2]]
+  proposals: [[2, 2], [2, 2], [2, 2], [1, 1]]
   folds: [[4, 4], [2, 2], [1, 1], [1, 1]]
   similarities: [cosine, cosine, cosine, cosine]
   stage_modes: [hybrid, hybrid, cluster, cluster]
@@ -36,8 +36,8 @@ model:
   local_ratios: [0.5, 0.5, 0.0, 0.0]
   channel_shuffle: [true, true, false, false]
   norm: bn
-  stem_stride: 2
-  drop_path_rate: 0.12
+  stem_stride: 1
+  drop_path_rate: 0.08
 train:
   epochs: 300
   warmup_epochs: 5

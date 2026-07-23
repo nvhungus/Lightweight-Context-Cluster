@@ -30,7 +30,6 @@ class Mlp(nn.Module):
         x = self.act(x)
         x = self.drop(x)
         x = self.fc2(x)
-        x = self.drop(x)
         return x.permute(0, 3, 1, 2).contiguous()
 
 
